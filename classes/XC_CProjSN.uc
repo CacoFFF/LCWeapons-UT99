@@ -34,8 +34,11 @@ event Actor SpawnNotification( Actor A)
 		}
 		else if ( A.default.bNetTemporary || A.default.RemoteRole == ROLE_SimulatedProxy )
 		{
-			RemainingAdv[iStored] = Channel.ProjAdv;
-			Stored[iStored++] = Projectile(A);
+			if ( iStored < ArrayCount(Stored) )
+			{
+				RemainingAdv[iStored] = Channel.ProjAdv;
+				Stored[iStored++] = Projectile(A);
+			}
 		}
 		else //Guided warheads?
 			Advancer.RegisterAdvance( A);
@@ -67,7 +70,7 @@ event Tick( float DeltaTime)
 	}
 
 	//Make sure lowest slot of new ones is candidate
-	while ( Stored[iHighest] != none && (Stored[iHighest].Instigator != Channel.LocalPlayer) )
+	while ( (iHighest < ArrayCount(Stored)) && (Stored[iHighest] != none) && (Stored[iHighest].Instigator != Channel.LocalPlayer) )
 		iHighest++;
 	//Now move candidate upwards to replace non-candidates, compacting the block
 	//RemainingAdv is identical in all cases!!
