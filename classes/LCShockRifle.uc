@@ -225,8 +225,7 @@ simulated function ProcessTraceHit(Actor Other, Vector HitLocation, Vector HitNo
 		else
 		{
 			Explosion = Spawn(GlobalExplosion,Owner,, HitLocation+HitNormal*8,rotator(HitNormal));
-			if ( bSpecialEff )
-				Explosion.SetPropertyText("bNotRelevantToOwner","1");
+			Explosion.SetPropertyText("bNotRelevantToOwner",string(bSpecialEff));
 		}
 		EditExplosion( Explosion);
 	}
@@ -255,9 +254,8 @@ simulated function SpawnEffect(vector HitLocation, vector SmokeLocation)
 		Smoke = Spawn( HiddenBeam,Owner,,SmokeLocation,SmokeRotation);
 	else
 	{
-		Smoke = Spawn( GlobalBeam,,,SmokeLocation,SmokeRotation);
-		if ( bIsLC )
-			Smoke.SetPropertyText("bNotRelevantToOwner","1");
+		Smoke = Spawn( GlobalBeam,Owner,,SmokeLocation,SmokeRotation);
+		Smoke.SetPropertyText("bNotRelevantToOwner",string(bIsLC));
 	}
 	Smoke.MoveAmount = DVector/NumPoints;
 	Smoke.NumPuffs = NumPoints - 1;	
