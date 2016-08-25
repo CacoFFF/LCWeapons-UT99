@@ -28,7 +28,18 @@ function GiveTo( pawn Other )
 
 function SetSwitchPriority(pawn Other)
 {
+	local int i;
+
 	Class'LCStatics'.static.SetSwitchPriority( Other, self, 'Enforcer');
+	if ( PlayerPawn(Other) != None )
+	{
+		for ( i=0; i<50; i++)
+			if ( PlayerPawn(Other).WeaponPriority[i] == 'doubleenforcer' )
+			{
+				DoubleSwitchPriority = i;
+				return;
+			}
+	}	
 }
 
 ////////////////////////////////
