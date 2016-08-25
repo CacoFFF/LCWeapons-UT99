@@ -1,0 +1,12 @@
+Server's default prediction cap is 150ms.
+Player can now alter the prediction milliseconds cap with a command.
+- MUTATE GETPREDICTION
+** Informs the player of the server's prediction cap and the client's forced prediction
+** values if he has any.
+- MUTATE PREDICTION
+** Informs the client on how to force a prediction cap
+- MUTATE PREDICTION _PING_
+** Force prediction cap, replace _PING_ with a value.
+** IF VALUE = 0 or DISABLE: prediction is disabled
+** IF VALUE = -1 or DEFAULT: prediction is handled by server settings
+** ELSE, USE VALUE as milliseconds cap.

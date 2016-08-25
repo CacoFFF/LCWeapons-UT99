@@ -1,0 +1,34 @@
+//
+//  Player position actor, designed for lag compensation
+////////////////////////////////////////////////////////
+class XC_PlayerPos expands Info;
+
+var float ffSTimeStamp;
+var float ffCTimeStamp;
+var float ExtraDist;
+var XC_PlayerPos ffNextPos, ffPrevPos;
+var bool ffGhost;
+var bool ffDuck;
+var bool ffTeleported;
+var XC_LagCompensator ffOwner;
+
+var XC_PlayerPos ffContiguous, ffPrevConti; //Used for non ZP compensation
+
+
+event PostBeginPlay()
+{
+	Disable('Tick');
+}
+
+function vector AlphaParams( private float ffDelayed)
+{
+}
+
+defaultproperties
+{
+	bHidden=True
+	bStasis=True
+	bCollideWhenPlacing=False
+	bForceStasis=True
+	RemoteRole=ROLE_None
+}

@@ -1,0 +1,5 @@
+
+LCWeapons:
+
+- ffAimError > nominal aim error, must be matching in both Client and Server. 
+Not taken into consideration if weapon has Zero aim error

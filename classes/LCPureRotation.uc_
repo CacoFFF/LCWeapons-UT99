@@ -1,0 +1,15 @@
+//=============================================================================
+// LCPureRotation.
+//=============================================================================
+class LCPureRotation expands Object;
+
+static final function rotator PlayerRot( pawn P)
+{
+	if ( P.IsA('bbPlayer') )
+		return P.GR();
+	return P.ViewRotation;	
+}
+
+defaultproperties
+{
+}

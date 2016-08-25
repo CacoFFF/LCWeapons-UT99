@@ -1,0 +1,36 @@
+Made by Higor.
+- caco_fff@hotmail.com
+
+
+Copy LCweapons_xxxx.u (xxxx being current version) and LCweapons.int to (UT)\System folder
+Run the mutator LCWeapons_xxxx.LCMutator and don't forget to add said package to ServerPackages.
+If you're running XC_GameEngine version 11 or above, it isn't necessary to use ServerPackages setting.
+
+If there's an arena mutator the LCWeapons knows of, also load it and LCWeapons will attempt to do it's job.
+
+
+===========
+Before doing any changes, you should request for my assistance first.
+I may get said changes up on a global release.
+
+
+===========
+SiegeIV version 12 and onwards:
+Suppliers will detect LCWeapons, no need to edit settings
+
+Older Siege:
+The advanced weapon replacement system makes it so that player spawns with all weapons without any INI changes
+Buildable weapons, or Skaarj weapons (if spawned after frame 0) will work as well.
+
+Suppliers only do exact type checks, so these changes will be necessary on the Siege INI:
+[Supplier Class Here]
+Weapons[0]=LCWeapons_xxxx.LCEnforcer
+Weapons[2]=LCWeapons_xxxx.LCShockRifle
+Weapons[5]=LCWeapons_xxxx.LCMinigun2
+Weapons[8]=LCWeapons_xxxx.LCSniperRifle
+
+===========
+MonsterHunt:
+
+bEnableMHhack is set to True by default so monsters are taken as LC targets on older MH versions.
+If your MH version doesn't rely on preventing monsters from being polled by the mutator chain disable this setting.

@@ -1,0 +1,2 @@
+class LCDummyWeapon expands Weapon;
+
