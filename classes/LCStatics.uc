@@ -15,6 +15,10 @@ var bool bXCGE;
 var bool bXCGE_LevelHook; //Indicates that level has been hooked
 var bool bXCGE_NotRelevantToOwner; //Indicates that bNotRelevantToOwner feature exists on this server
 
+//XC_Engine interface
+native(3560) static final function bool ReplaceFunction( class<Object> ReplaceClass, class<Object> WithClass, name ReplaceFunction, name WithFunction, optional name InState);
+native(3561) static final function bool RestoreFunction( class<Object> RestoreClass, name RestoreFunction, optional name InState);
+
 
 //*********************
 // Detect XC_GameEngine
@@ -25,6 +29,9 @@ static final function bool DetectXCGE( Actor Other)
 	default.bXCGE = InStr( Other.XLevel.GetPropertyText("Engine"), "XC_GameEngine") >= 0;
 	default.XCGE_Version = int(Other.Level.ConsoleCommand("get ini:Engine.Engine.GameEngine XC_Version"));
 	default.bXCGE_LevelHook = bool( Other.Level.ConsoleCommand("get ini:Engine.Engine.GameEngine bUseLevelHook"));
+	if ( default.XCGE_Version >= 19 ) //XC_Core version 7 or above
+	{
+	}
 	return default.bXCGE;
 }
 
@@ -301,7 +308,7 @@ static final function string ClearSpaces( string Text)
 	i = InStr(Text, " ");
 	while( i == 0 )
 	{
-		Text = Right(Text, Len(Text) - 1);
+		Text = Mid( Text, 1);
 		i = InStr(Text, " ");
 	}
 	return Text;

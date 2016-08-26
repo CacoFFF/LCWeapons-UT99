@@ -140,7 +140,7 @@ function bool HasDucked( byte Slot)
 function bool CanHit( vector Start, vector TheLoc, vector X, vector Y, vector Z)
 {
 	TheLoc -= Start;
-	if ( VSize( TheLoc) > VSize( TheLoc + 5*X) )
+	if ( TheLoc dot X < 0 )
 		return false;
 	X.X = 0;
 	X.Y = TheLoc dot Y;
