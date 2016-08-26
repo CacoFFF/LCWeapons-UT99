@@ -24,7 +24,6 @@ struct AdvanceInfo
 	var Actor Base; //For future support
 	var vector BaseLocation;
 
-	var float PhysicsAdvance;
 	var bool bAdvanced;
 };
 
@@ -131,18 +130,8 @@ function AdvancePositions( float DeltaTime)
 			continue;
 		}
 		ToAdvance = Advanced[i].Actor;
-		if ( ToAdvance.bTicked == bTicked )
-			Advanced[i].PhysicsAdvance = 0;
-		else
-		{
-			if ( ToAdvance.bIsPawn )
-			{
-				Ticker.bPendingRemove = true;
-				continue;
-			}
-			Advanced[i].PhysicsAdvance = DeltaTime;
-		}
-
+		if ( ToAdvance.bTicked != bTicked ) //Do not advance actors that haven't been ticked
+			continue;
 		if ( ToAdvance.bIsPawn && AdvCode == 1 )
 			continue;
 		
@@ -282,13 +271,6 @@ function DeAdvancePositions()
 		if ( ToAdvance.Base != none && (ToAdvance.Base.Location - Advanced[i].BaseLocation != vect(0,0,0)) )
 			TargetLocation -= ToAdvance.Base.Location - Advanced[i].BaseLocation;
 		ToAdvance.SetLocation( TargetLocation ); //The old collision hash is unstable, let's not overload it with move commands
-		if ( Advanced[i].PhysicsAdvance > 0 )
-		{
-			if ( ToAdvance.Physics != PHYS_None )
-				ToAdvance.AutonomousPhysics( Advanced[i].PhysicsAdvance);
-			else
-				ToAdvance.MoveSmooth( Advanced[i].Velocity * Advanced[i].PhysicsAdvance);
-		}
 		if ( bOldCA )
 		{
 			bOldCA = false;
