@@ -182,7 +182,7 @@ function int SiegeMini( Weapon Other)
 {
 	local Weapon W;
 
-	W = Other.Spawn(class'LCMinigun2');
+	W = Other.Spawn(class'LCMinigun2', Other.Owner, Other.Tag);
 	if ( W != none )
 	{
 		LCMinigun2(W).SlowSleep = 0.14;
@@ -210,7 +210,7 @@ function int DoReplace( Weapon Other, class<Weapon> NewWeapClass, optional bool 
 {
 	local Weapon W;
 
-	W = Other.Spawn(NewWeapClass);
+	W = Other.Spawn(NewWeapClass, Other.Owner, Other.Tag);
 	if ( W != none )
 	{
 		W.SetCollisionSize( Other.CollisionRadius, Other.CollisionHeight);
