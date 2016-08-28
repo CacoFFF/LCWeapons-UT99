@@ -122,7 +122,10 @@ function bool ProcessHit( Actor ffOther, Weapon Weap, int ffID, float ffTime, ve
 	local int Seed;
 
 	if ( Weap == none || Weap.bDeleteMe || Pawn(Owner).Weapon != Weap ) //Fixes a weapon toss exploit that allows teamkilling
+	{
+		RejectShot( "Bad weapon");
 		return false;
+	}
 	
 	Imprecise = byte(LCComp.ImpreciseTimer > 0);
 	if ( ffAccuracy != 0 )
@@ -506,12 +509,12 @@ simulated function LockSWJumpPads( class<Teleporter> PadClass)
 
 function RejectShot( coerce string Reason)
 {
-	Log( "LC Shot rejected: "$Reason,'LagCompensator');
+	Log( "LC REJECT: "$Reason,'LagCompensator');
 	if ( bReportReject )
 	{
 		bReportReject = false;
 		if ( PlayerPawn(Owner) != none )
-			PlayerPawn(Owner).ClientMessage( Reason);
+			PlayerPawn(Owner).ClientMessage( "LC REJECT: "$Reason);
 	}
 }
 
