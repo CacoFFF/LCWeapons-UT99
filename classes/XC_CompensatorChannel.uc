@@ -31,6 +31,7 @@ var bool bFakeSwitch;
 var bool bAlreadyProcessed; //Queue following shots
 var bool bSWChecked;
 var bool bNoBinds;
+var bool bReportReject;
 
 var() config bool bUseLagCompensation;
 var() config int ForcePredictionCap;
@@ -77,12 +78,12 @@ function ffSendHit( Actor ffOther, Weapon Weap, int ffID, float ffTime, vector f
 		return;
 	if ( Weap.IsInState('DownWeapon') )
 	{
-		Log("DOWNWEAPON State", 'LagCompensator');
+		RejectShot("DOWNWEAPON State");
 		return;
 	}
 	if ( int(ffAccuracy != 0) + int((ShootFlags >>> 16) == 0) != 1 )
 	{
-		Log("Accuracy("$ffAccuracy$") and ShootFlags("$ShootFlags$") inconsistency",'LagCompensator');
+		RejectShot("Accuracy("$ffAccuracy$") and ShootFlags("$ShootFlags$") inconsistency");
 		return;
 	}
 	if ( !LCComp.ffClassifyShot(ffTime) ) //Time classification failure
@@ -313,6 +314,8 @@ state ServerOp
 	event Tick( float DeltaTime)
 	{
 		local int i;
+		
+		bReportReject = true;
 		While ( i < ffISaved )
 		{
 			CurWeapon.Tick(0);
@@ -498,6 +501,17 @@ simulated function LockSWJumpPads( class<Teleporter> PadClass)
 	{
 		LocalPlayer.GetEntryLevel().ConsoleCommand("set "$PadClass$" bNoDelete 1");
 //		PadClass.default.bNoDelete = true;
+	}
+}
+
+function RejectShot( coerce string Reason)
+{
+	Log( "LC Shot rejected: "$Reason,'LagCompensator');
+	if ( bReportReject )
+	{
+		bReportReject = false;
+		if ( PlayerPawn(Owner) != none )
+			PlayerPawn(Owner).ClientMessage( Reason);
 	}
 }
 

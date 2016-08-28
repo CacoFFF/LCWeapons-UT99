@@ -20,7 +20,6 @@ var GameEngine XCGE;
 var byte GlobalPos;
 var byte GenericPos;
 var bool bUpdateGeneric;
-var bool bNoLogFail;
 var bool bNoBinds;
 var bool bNeedsHiddenEffects;
 
@@ -355,8 +354,7 @@ function bool FastValidate( XC_CompensatorChannel LCChan, Actor Other, int HashI
 	{
 		if ( string(Accuracy) != aWeap.GetPropertyText("ffAimError") ) //Weapon aim error mismatch
 		{
-			if ( !bNoLogFail )
-				Log("Aim error mismatch:"@Accuracy@"vs"@aWeap.GetPropertyText("ffAimError"),'LagCompensator');
+			LCChan.RejectShot("Aim error mismatch:"@Accuracy@"vs"@aWeap.GetPropertyText("ffAimError"));
 			return false;
 		}
 	}
@@ -373,8 +371,7 @@ function bool FastValidate( XC_CompensatorChannel LCChan, Actor Other, int HashI
 	{
 		if ( (Imprecise > 0) || (VSize( aVec - Normal(End-Start)) > 0.20) )
 		{
-			if ( !bNoLogFail )
-				Log( "DIRECTION DIFF IS :"$ VSize( aVec - Normal(End-Start)) , 'LagCompensator');
+			LCChan.RejectShot( "DIRECTION DIFF IS :"$ VSize( aVec - Normal(End-Start)));
 			return false;
 		}
 		else Imprecise++;	
@@ -388,8 +385,7 @@ function bool FastValidate( XC_CompensatorChannel LCChan, Actor Other, int HashI
 		{}
 		else if ( (Imprecise > 0) || (VSize( aVec - Vector(FixedRot)) > 0.22) )
 		{
-			if ( !bNoLogFail )
-				Log( "VROTATION DIFFERENCE IS: "$ VSize( aVec - Vector(P.ViewRotation)) , 'LagCompensator');
+			LCChan.RejectShot( "VROTATION DIFFERENCE IS: "$ VSize( aVec - Vector(P.ViewRotation)));
 			return false;
 		}
 		else Imprecise++;
@@ -403,8 +399,7 @@ function bool FastValidate( XC_CompensatorChannel LCChan, Actor Other, int HashI
 	{
 		if ( (Imprecise > 0) || (VSize(WeaponStartTrace(aWeap) - Start) > (75 + aVec.X * 1.1 + VSize(P.Velocity) * 0.32)) )
 		{
-			if ( !bNoLogFail )
-				Log( "VECTOR START DIFF = "$VSize(WeaponStartTrace(aWeap) - Start) , 'LagCompensator');
+			LCChan.RejectShot( "START DIFF = "$int(VSize(WeaponStartTrace(aWeap) - Start)) );
 			return false;
 		}
 		else Imprecise++;
@@ -413,8 +408,7 @@ function bool FastValidate( XC_CompensatorChannel LCChan, Actor Other, int HashI
 	{
 		if ( (Imprecise > 0) || (VSize( PLoc - P.Location) > (60 + aVec.X * 1.1 + VSize(P.Velocity) * 0.28)) )
 		{
-			if ( !bNoLogFail )
-				Log( "LOCATION DIFF = "$VSize( PLoc - P.Location) , 'LagCompensator');
+			LCChan.RejectShot( "LOCATION DIFF = "$int(VSize( PLoc - P.Location)) );
 			return false;
 		}
 		else Imprecise++;

@@ -118,14 +118,14 @@ function bool ffClassifyShot( private float ffClientTimeS)
 
 	if ( ffDelaying != 0 ) //We're delaying sped up shots, so don't fire
 	{
-		Log("CLIENT SHOT DENIED, ALLOWING IN "$ffDelayCount,'LagCompensator');
+		CompChannel.RejectShot("DENIED, ALLOWING IN "$ffDelayCount);
 		return false;
 	}
 	if ( ffCTimeStamp == 0 )
 		ffCTimeStamp = ffClientTimeS;
 	if ( ffRefireTimer > ffCurRegTimer + 0.2 * Level.TimeDilation )
 	{
-		Log("Refire timer is too high: "$ffRefireTimer, 'LagCompensator');
+		CompChannel.RejectShot("Refire timer is too high: "$ffRefireTimer);
 		return false;
 	}
 	//Too much difference between 1 shot and other
@@ -134,14 +134,14 @@ function bool ffClassifyShot( private float ffClientTimeS)
 	{
 		ffDelaying = 1; //Delay the ffCTimeStamp forward
 		ffDelayCount = ffTmp;
-		Log("CLIENT TIMING IS TOO AHEAD "$ffTmp, 'LagCompensator');
+		CompChannel.RejectShot("CLIENT TIMING IS TOO AHEAD "$ffTmp);
 		return false;
 	}
 	else if ( abs(ffTmp) > (0.5 * Level.TimeDilation) ) //Client is too behind
 	{
 		ffDelaying = -1; //Delay the ffCTimeStamp backwards
 		ffDelayCount = -ffTmp; //Because ffTmp is negative
-		Log("CLIENT TIMING IS TOO BEHIND "$ffTmp, 'LagCompensator');
+		CompChannel.RejectShot("CLIENT TIMING IS TOO BEHIND "$ffTmp);
 		return false;
 	}
 	return true;
