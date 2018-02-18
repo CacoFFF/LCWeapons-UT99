@@ -211,12 +211,14 @@ function bool ffUnlagPositions( private XC_LagCompensator ffOther, vector ShootS
 	local private XC_LagCompensator nani2;
 	local byte Slot;
 	local vector X,Y,Z;
+	local float ShootTimeStamp;
 
 	if ( ffOther == none )
 		return false;
 
 	ffPing = float(ffOther.ffLastPing) / 1000.0;
 	ffPing = ffPing * PingMult + PingAdd; //Debug
+	ShootTimeStamp = Level.TimeSeconds - ffPing * Level.TimeDilation;
 	ffPawnPing = ffPing; //Special ping for pawns, does not get reduced by element advancer
 	if ( ffOther.CompChannel != none )
 		ffPing -= ffOther.CompChannel.ProjAdv; //Projectiles are indeed seen ahead on clients
@@ -239,6 +241,8 @@ function bool ffUnlagPositions( private XC_LagCompensator ffOther, vector ShootS
 			Goto NEXT_LOOP;
 
 		PosList = nani2.PosList;
+		if ( !PosList.IsHittable( Slot, ShootTimeStamp) )
+			Goto NEXT_LOOP;
 		if ( PosList.HasTeleported(Slot))	ffPos = PosList.GetLoc( Slot);
 		else								ffPos = PosList.AlphaLoc( Slot, ffDelta);
 
@@ -430,6 +434,21 @@ function vector WeaponStartTrace( Weapon W)
 	local vector X,Y,Z;
 	GetAxes( Pawn(W.Owner).ViewRotation, X, Y, Z);
 	return W.Owner.Location + W.CalcDrawOffset() + W.FireOffset.Y * Y + W.FireOffset.Z * Z; 
+}
+
+function ScoreKill(Pawn Killer, Pawn Other)
+{
+	local XC_LagCompensator LCComp;
+	
+	if ( Other.PlayerReplicationInfo != None )
+	{
+		LCComp = ffFindCompFor( Other);
+		if ( LCComp != None && LCComp.PosList != None )
+			LCComp.PosList.LastDeathTimeStamp = Level.TimeSeconds;
+	}
+	
+	if ( NextMutator != None )
+		NextMutator.ScoreKill(Killer, Other);
 }
 
 function bool IsRelevant(Actor Other, out byte bSuperRelevant)

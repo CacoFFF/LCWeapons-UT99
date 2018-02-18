@@ -428,7 +428,6 @@ final function SetServerPackage( string Pkg)
 {
 	if ( LCS.default.XCGE_Version >= 11 )
 		AddToPackageMap( Pkg);
-
 }
 
 

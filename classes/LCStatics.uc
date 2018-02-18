@@ -4,8 +4,8 @@
 
 class LCStatics expands Object;
 
-#exec OBJ LOAD FILE="LCPureUtil.u" PACKAGE=LCWeapons_0018
-#exec OBJ LOAD FILE="SiegeUtil_A.u" PACKAGE=LCWeapons_0018
+#exec OBJ LOAD FILE="LCPureUtil.u" PACKAGE=LCWeapons_0019
+#exec OBJ LOAD FILE="SiegeUtil_A.u" PACKAGE=LCWeapons_0019
 
 const MULTIPLIER = 0x015a4e35;
 const INCREMENT = 1;
@@ -84,7 +84,7 @@ static function ffSwap( out private int U, out private int H)
 //*************************
 //Client friendly TraceShot
 //*************************
-static final function actor ffTraceShot(out vector ffHitLocation, out vector ffHitNormal, vector ffEndTrace, vector ffStartTrace, private Pawn ffTmp)
+static final function Actor ffTraceShot(out vector ffHitLocation, out vector ffHitNormal, vector ffEndTrace, vector ffStartTrace, private Pawn ffTmp)
 {
 	local private vector ffRealHit;
 	local private actor ffOther;
@@ -115,10 +115,10 @@ static final function actor ffTraceShot(out vector ffHitLocation, out vector ffH
 //************************************
 //Server TraceShot for missed ZP shots
 //************************************
-static final function actor ffIrrelevantShot(out vector ffHitLocation, out vector ffHitNormal, vector ffEndTrace, vector ffStartTrace, private Pawn ffTmp, private float ffPing)
+static final function Actor ffIrrelevantShot(out vector ffHitLocation, out vector ffHitNormal, vector ffEndTrace, vector ffStartTrace, private Pawn ffTmp, private float ffPing)
 {
 	local private vector ffRealHit;
-	local private actor ffOther;
+	local private Actor ffOther;
 
 	if ( ffTmp == none )
 		return none;
@@ -133,6 +133,27 @@ static final function actor ffIrrelevantShot(out vector ffHitLocation, out vecto
 		return ffOther;
 	}
 	return none;
+}
+
+//*************************************
+//Server trace of LC sub-engine weapons
+//*************************************
+static final function Actor LCTrace( out vector HitLocation, out vector HitNormal, vector EndTrace, vector StartTrace, Pawn Shooter)
+{
+	local Actor A;
+	
+	ForEach Shooter.TraceActors( class'Actor', A, HitLocation, HitNormal, EndTrace, StartTrace)
+	{
+		if ( !TraceStopper( A) )
+		{
+			if ( (!A.bProjTarget && !A.bBlockActors) //Unhittable
+				|| CompensatedType(A) //Hit compensator instead
+				|| (A.bIsPawn && !Pawn(A).AdjustHitLocation(HitLocation, EndTrace - StartTrace)) ) //Missed
+				continue;
+		}
+		return CompensatedHitActor( A, HitLocation);
+	}
+	return None;
 }
 
 
@@ -170,7 +191,7 @@ static final function rotator DecompressRotator( int A)
 //*************************************************************
 //Finds out if this hit actor should be considered for ZP shots
 //*************************************************************
-static final function bool RelevantHitActor( actor Other, optional PlayerPawn P, optional float Ping)
+static final function bool RelevantHitActor( Actor Other, optional PlayerPawn P, optional float Ping)
 {
 	if ( Other.bIsPawn && (StationaryPawn(Other) == none) )
 		return true;
@@ -200,7 +221,7 @@ static final function bool RelevantHitActor( actor Other, optional PlayerPawn P,
 //******************************************************************
 //This actor is always the end of a shot, regardless of other checks
 //******************************************************************
-static final function bool TraceStopper( actor Other)
+static final function bool TraceStopper( Actor Other)
 {
 	if ( Other == Other.Level || Other.IsA('Mover') )
 		return true;
@@ -225,10 +246,10 @@ static final function bool CompensatedType( actor Other)
 //****************************************************
 //If this is a lag compensator, return the real victim
 //****************************************************
-static final function actor CompensatedHitActor( actor Other, out vector HitLocation)
+static final function actor CompensatedHitActor( Actor Other, out vector HitLocation)
 {
 	if ( Other == none || Other.bIsPawn || Other == Other.Level ) //Super fast checks
-		return Other;
+		return Other; //Should deprecate
 	if ( XC_LagCompensator(Other) != none )
 	{
 		HitLocation += XC_LagCompensator(Other).ffOwner.Location - Other.Location;

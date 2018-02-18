@@ -70,8 +70,8 @@ state Firing
 	{
 		local PlayerPawn P;
 		local Rotator EnemyRot;
-		local vector HitLocation, HitNormal, StartTrace, EndTrace, X, Y, Z, FakeHitLoc;
-		local actor HitActor, aActor;
+		local vector HitLocation, HitNormal, StartTrace, EndTrace, X, Y, Z;
+		local Actor HitActor;
 
 		P = PlayerPawn(Owner);
 		if ( P == none )
@@ -107,38 +107,17 @@ state Firing
 			if ( IsLC() )
 			{
 				LCChan.LCActor.ffUnlagPositions( LCChan.LCComp, StartTrace, rotator(EndTrace-StartTrace) );
-				ForEach P.TraceActors( class'Actor', aActor, HitLocation, HitNormal, EndTrace, StartTrace)
-				{
-					if ( Class'LCStatics'.static.TraceStopper( aActor) )
-					{
-						HitActor = aActor;
-						break;
-					}
-					if ( !aActor.bProjTarget && !aActor.bBlockActors )
-						continue;
-					if ( Class'LCStatics'.static.CompensatedType(aActor) )
-						continue;
-					if ( aActor.bIsPawn && !Pawn(aActor).AdjustHitLocation(HitLocation, EndTrace - StartTrace) )
-						continue; //We can't hit this Pawn due to special collision rules
-	
-					HitActor = aActor;
-					break;
-				}
-				FakeHitLoc = HitLocation;
-				HitActor = Class'LCStatics'.static.CompensatedHitActor( HitActor, HitLocation);
+				HitActor = class'LCStatics'.static.LCTrace( HitLocation, HitNormal, EndTrace, StartTrace, P);
 				LCChan.LCActor.ffRevertPositions();
 			}
 			else
-			{
 				HitActor = Trace(HitLocation, HitNormal, EndTrace, StartTrace, true);
-				FakeHitLoc = HitLocation;
-			}
 
 
 			if ( (HitActor != None) && (HitActor.DrawType == DT_Mesh) )
 			{
 				GetAxes( BufferedDir, X, Y, Z); //HA!
-				ProcessTraceHit(HitActor, FakeHitLoc, HitNormal, X, Y, Z);
+				ProcessTraceHit(HitActor, HitLocation, HitNormal, X, Y, Z);
 				PlayFiring();
 				GoToState('FireBlast');
 			}
@@ -196,48 +175,29 @@ simulated function SimTraceFire()
 
 function TraceFire(float accuracy)
 {
-	local vector HitLocation, HitNormal, StartTrace, EndTrace, X, Y, Z, FakeHitLoc;
-	local actor Other, aActor;
+	local vector HitLocation, HitNormal, StartTrace, EndTrace, X, Y, Z;
+	local Pawn PawnOwner;
+	local Actor Other;
 
-	if ( Owner == none )
+	PawnOwner = Pawn(Owner);
+	if ( PawnOwner == none )
 		return;
-	Owner.MakeNoise(Pawn(Owner).SoundDampening);
-	GetAxes(Pawn(owner).ViewRotation, X, Y, Z);
-	BufferedDir = Pawn(Owner).ViewRotation;
+	Owner.MakeNoise(PawnOwner.SoundDampening);
+	GetAxes(PawnOwner.ViewRotation, X, Y, Z);
+	BufferedDir = PawnOwner.ViewRotation;
 	StartTrace = Owner.Location + CalcDrawOffset() + FireOffset.Y * Y + FireOffset.Z * Z; 
-	AdjustedAim = pawn(owner).AdjustAim(1000000, StartTrace, AimError, False, False);	
+	AdjustedAim = PawnOwner.AdjustAim(1000000, StartTrace, AimError, False, False);	
 	EndTrace = StartTrace + 120.0 * vector(AdjustedAim); 
 
 	if ( IsLC() )
 	{
 		LCChan.LCActor.ffUnlagPositions( LCChan.LCComp, StartTrace, rotator(EndTrace-StartTrace) );
-		ForEach Owner.TraceActors( class'Actor', aActor, HitLocation, HitNormal, EndTrace, StartTrace)
-		{
-			if ( Class'LCStatics'.static.TraceStopper( aActor) )
-			{
-				Other = aActor;
-				break;
-			}
-			if ( !aActor.bProjTarget && !aActor.bBlockActors )
-				continue;
-			if ( Class'LCStatics'.static.CompensatedType(aActor) )
-				continue;
-			if ( aActor.bIsPawn && !Pawn(aActor).AdjustHitLocation(HitLocation, EndTrace - StartTrace) )
-				continue; //We can't hit this Pawn due to special collision rules
-	
-			Other = aActor;
-			break;
-		}
-		FakeHitLoc = HitLocation;
-		Other = Class'LCStatics'.static.CompensatedHitActor( Other, HitLocation);
+		Other = class'LCStatics'.static.LCTrace( HitLocation, HitNormal, EndTrace, StartTrace, PawnOwner);
 		LCChan.LCActor.ffRevertPositions();
 	}
 	else
-	{
-		Other = Pawn(Owner).TraceShot(HitLocation, HitNormal, EndTrace, StartTrace);
-		FakeHitLoc = HitLocation;
-	}
-	ProcessTraceHit(Other, FakeHitLoc, HitNormal, vector(AdjustedAim), Y, Z);
+		Other = PawnOwner.TraceShot(HitLocation, HitNormal, EndTrace, StartTrace);
+	ProcessTraceHit(Other, HitLocation, HitNormal, vector(AdjustedAim), Y, Z);
 }
 
 

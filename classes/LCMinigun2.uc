@@ -75,7 +75,7 @@ simulated function FixOffset (float Y)
 function TraceFire( float Accuracy )
 {
 	local vector HitLocation, HitNormal, StartTrace, EndTrace, X,Y,Z, AimDir;
-	local actor Other, aActor;
+	local actor Other;
 	local bool bIsLC;
 
 	if ( Owner == none )
@@ -94,22 +94,7 @@ function TraceFire( float Accuracy )
 	if ( bIsLC )
 	{
 		LCChan.LCActor.ffUnlagPositions( LCChan.LCComp, StartTrace, rotator(EndTrace-StartTrace) );
-		ForEach Owner.TraceActors( class'Actor', aActor, HitLocation, HitNormal, EndTrace, StartTrace)
-		{
-			if ( Class'LCStatics'.static.TraceStopper( aActor) )
-			{
-				Other = aActor;
-				break;
-			}
-			if ( (!aActor.bProjTarget && !aActor.bBlockActors) || Class'LCStatics'.static.CompensatedType(aActor) )
-				continue;
-			if ( aActor.bIsPawn && !Pawn(aActor).AdjustHitLocation(HitLocation, EndTrace - StartTrace) )
-				continue; //We can't hit this Pawn due to special collision rules
-	
-			Other = aActor;
-			break;
-		}
-		Other = Class'LCStatics'.static.CompensatedHitActor( Other, HitLocation);
+		Other = class'LCStatics'.static.LCTrace( HitLocation, HitNormal, EndTrace, StartTrace, Pawn(Owner));
 		LCChan.LCActor.ffRevertPositions();
 	}
 	else

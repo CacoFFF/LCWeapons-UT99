@@ -11,6 +11,7 @@ var int Flags[128];
 //1 - Ghost
 //2 - Duck
 //4 - Teleported
+var float LastDeathTimeStamp;
 
 var XC_LagCompensation Master;
 var XC_LagCompensator ffOwner;
@@ -77,17 +78,17 @@ function int FindTopSlot( private float ffDelayed) //Time dilation must be appli
 }
 
 
-function byte ByteDiff( byte bBase, int Diff)
+final function byte ByteDiff( byte bBase, int Diff)
 {
-	return (bBase - Diff) % 128;	
+	return (bBase - Diff) & 0x7F;	
 }
 
-function float GetEDist( int Slot)
+final function float GetEDist( int Slot)
 {
 	return ExtraDist[Slot];
 }
 
-function vector GetLoc( int Slot)
+final function vector GetLoc( int Slot)
 {
 	return SavedLoc[Slot];
 }
@@ -99,6 +100,8 @@ function CorrectTimeStamp( float Offset)
 	For ( i=0 ; i<128 ; i++ )
 		STimeStamp[i] += Offset;
 }
+
+
 /*
 //Returns an alpha location between said slot and its older
 function vector DelayLoc( int Slot, float Delay)
@@ -134,6 +137,11 @@ function bool HasTeleported( byte Slot)
 function bool HasDucked( byte Slot)
 {
 	return ((Flags[Slot] & 2) != 0);
+}
+
+function bool IsHittable( byte Slot, float ShotTimeStamp)
+{
+	return ((Flags[Slot] & 1) == 0) && (ShotTimeStamp >= LastDeathTimeStamp); //Equal preffered to avoid floating point truncation at high numbers
 }
 
 //TheLoc should be my past location
