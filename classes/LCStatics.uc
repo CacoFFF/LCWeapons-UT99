@@ -206,12 +206,12 @@ static final function bool ContainsRotator( rotator Sample, rotator A, rotator B
 	DirV.Y = -DirH.X;
 	Radius = Abs( (MidPoint - vB) dot DirH); //Large radius of elypse
 	
-	Log( Sample @ A @ B);
+//	Log( Sample @ A @ B);
 	
 	PointRelative = vS - MidPoint; //Relative sample on elypse
 	HDist = (PointRelative dot DirH) / Radius; //H coordinate of relative
 	VDist = (PointRelative dot DirV) / Radius; //V coordinate of relative (adjustable to Expand)
-	Log("H="$HDist@"V="$VDist);
+//	Log("H="$HDist@"V="$VDist);
 	return Square(HDist) + Square(VDist/Expand) <= 1.2; //Rotation compression adds error
 }
 

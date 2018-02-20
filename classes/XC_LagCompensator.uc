@@ -34,6 +34,11 @@ struct XC_PlayerMove
 	var float Timestamp;
 };
 
+struct XC_PlayerPos
+{
+	var() vector Location;
+	var() float ExtraDist;
+};
 
 event PreBeginPlay() //Prevent destruction
 {
@@ -130,15 +135,10 @@ function bool ValidatePlayerView( float ClientTimeStamp, vector StartTrace, int 
 	Imprecise += 20;
 	if ( ClientTimeStamp < Player.CurrentTimeStamp )
 	{
-		bApproximateView = !class'LCStatics'.default.bXCGE_PlayerState || !HasPos(); //UTPure may cause No-Pos (diff ServerMove)
-		if ( !bApproximateView && !GetPos(ClientTimeStamp, PlayerPos, ServerView) )
-			return false;
-		else if ( bApproximateView )
-		{
-			alpha = (ClientTimeStamp-CompChannel.OldTimeStamp)/(Player.CurrentTimeStamp-CompChannel.OldTimeStamp);
-			ServerView = class'LCStatics'.static.AlphaRotation( ServerView, CompChannel.OldView, alpha );
-			PlayerPos = CompChannel.OldPosition + (Player.Location - CompChannel.OldPosition) * alpha;
-		}
+		bApproximateView = true;
+		alpha = (ClientTimeStamp-CompChannel.OldTimeStamp)/(Player.CurrentTimeStamp-CompChannel.OldTimeStamp);
+		ServerView = class'LCStatics'.static.AlphaRotation( ServerView, CompChannel.OldView, alpha );
+		PlayerPos = CompChannel.OldPosition + (Player.Location - CompChannel.OldPosition) * alpha;
 	}
 	
 	//Validate view
