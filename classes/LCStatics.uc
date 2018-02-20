@@ -32,6 +32,9 @@ static final function bool DetectXCGE( Actor Other)
 	if ( default.XCGE_Version >= 19 ) //XC_Core version 7 or above
 	{
 	}
+	if ( default.XCGE_Version >= 20 ) //Static-safe XCGE replacer
+	{
+	}
 	return default.bXCGE;
 }
 
@@ -44,29 +47,6 @@ static final function rotator PlayerRot( pawn P)
 	return class'LCPureRotation'.static.PlayerRot(P);
 }
 
-
-//******************************************************************************************************
-//Hash a player instead of referencing the actor, we're doing this because of security and BotZ support.
-//******************************************************************************************************
-static final function int ffPCode( private Pawn ffOther)
-{
-	return ffOther.PlayerReplicationInfo.PlayerID;
-/* BUGHERE
-	local private PlayerReplicationInfo ffPRI;
-	local private int ffTmp;
-	local private int nani, nani2;
-
-	ffPri = ffOther.PlayerReplicationInfo;
-	ffTmp = ffPRI.PlayerID * 2;
-	nani = ffTmp;
-	ffSwap( nani, nani2);
-	nani = ffRevertByte( nani2);
-	ffSwap( nani, ffTmp);
-	nani = ffPri.Deaths * 3 + 150;
-	ffTmp = ffTmp | (nani + nani2);
-	ffSwap( ffTmp, nani2);
-	return nani2;*/
-}
 
 //*****************
 //Swap two integers
@@ -187,6 +167,66 @@ static final function rotator DecompressRotator( int A)
 	return aRot;
 }
 
+//***********************************************************
+//Sees if LC compressed and player compressed rotations match
+//***********************************************************
+static final function bool CompareRotation( rotator A, rotator B)
+{
+	return ((A.Yaw & 65534) == (B.Yaw & 65534)) && ((A.Pitch & 65534) == (B.Pitch & 65534));
+}
+
+//****************************************************************
+//Verify that a middle point belongs to a possible rotation change
+//****************************************************************
+static final function bool ContainsRotator( rotator Sample, rotator A, rotator B, float Expand)
+{
+	local rotator rr;
+	local vector vA, vB, vS, DirH, DirV, MidPoint, PointRelative;
+	local float Radius, HDist, VDist;
+	
+	Expand = FMax( 0.1, Expand);
+	
+	vA.X = A.Pitch & 65534; //Starting point
+	vA.Y = A.Yaw & 65534;
+	rr.Pitch = (B.Pitch - A.Pitch) & 65534; //Establish direction of A->B
+	rr.Yaw   = (B.Yaw   - A.Yaw  ) & 65534;
+	if ( rr.Pitch > 32768 ) rr.Pitch -= 32768;
+	if ( rr.Yaw   > 32768 ) rr.Yaw   -= 32768;
+	vB.X = vA.X + rr.Pitch; //End point
+	vB.Y = vA.Y + rr.Yaw;
+	rr.Pitch = (Sample.Pitch - A.Pitch) & 65534; //Establish direction of A->Sample
+	rr.Yaw   = (Sample.Yaw   - A.Yaw  ) & 65534;
+	if ( rr.Pitch > 32768 ) rr.Pitch -= 32768;
+	if ( rr.Yaw   > 32768 ) rr.Yaw   -= 32768;
+	vS.X = vA.X + rr.Pitch; //Sample point
+	vS.Y = vA.Y + rr.Yaw;
+	MidPoint = (vA+vB)*0.5; //Center point
+	DirH = Normal(vA-vB); //Direction between points
+	DirV.X = DirH.Y; //Perpendicular direction
+	DirV.Y = -DirH.X;
+	Radius = Abs( (MidPoint - vB) dot DirH); //Large radius of elypse
+	
+	Log( Sample @ A @ B);
+	
+	PointRelative = vS - MidPoint; //Relative sample on elypse
+	HDist = (PointRelative dot DirH) / Radius; //H coordinate of relative
+	VDist = (PointRelative dot DirV) / Radius; //V coordinate of relative (adjustable to Expand)
+	Log("H="$HDist@"V="$VDist);
+	return Square(HDist) + Square(VDist/Expand) <= 1.2; //Rotation compression adds error
+}
+
+
+//*************************************************
+//Obtain a 'middle' point between 2 given rotations
+//*************************************************
+static final function rotator AlphaRotation( rotator End, rotator Start, float Alpha)
+{
+	local rotator Middle;
+	Middle.Yaw   = (Start.Yaw   + (End.Yaw   - Start.Yaw  ) * Alpha) & 65535;
+	Middle.Pitch = (Start.Pitch + (End.Pitch - Start.Pitch) * Alpha) & 65535;
+	Middle.Roll  = (Start.Roll  + (End.Roll  - Start.Roll ) * Alpha) & 65535;
+	return Middle;
+}
 
 //*************************************************************
 //Finds out if this hit actor should be considered for ZP shots

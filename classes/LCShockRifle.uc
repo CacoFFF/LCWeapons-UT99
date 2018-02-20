@@ -101,7 +101,7 @@ simulated function PlayFiring()
 {
 	Super.PlayFiring();
 	if ( IsLC() && (Level.NetMode == NM_Client) )
-		LCChan.bDelayedFire = true;
+		LCChan.ClientFire();;
 	if ( bTeamColor )
 		SetStaticSkins();
 }
@@ -110,7 +110,7 @@ simulated function PlayAltFiring()
 {
 	Super.PlayAltFiring();
 	if ( IsLC() && (Level.NetMode == NM_Client) )
-		LCChan.bDelayedAltFire = true;
+		LCChan.ClientFire(true);
 }
 
 simulated function Projectile ffSimProj( class<projectile> ProjClass, float ProjSpeed)
@@ -186,13 +186,13 @@ simulated function ffTraceFire()
 	ffOther = Class'LCStatics'.static.ffTraceShot(ffHitLocation,ffHitNormal,ffEndTrace,ffStartTrace,ffP);
 	ProcessTraceHit( ffOther, ffHitLocation, ffHitNormal, X, Y, Z);
 	if ( (Pawn(ffOther) != none) && (Pawn(ffOther).PlayerReplicationInfo != none ) )
-		LCChan.ffSendHit( none, self, class'LCStatics'.static.ffPCode(Pawn(ffOther)), Level.TimeSeconds, ffHitLocation, ffHitLocation - ffOther.Location, ffRot, ffStartTrace, class'LCStatics'.static.CompressRotator(ffRot), 3);
+		LCChan.ffSendHit( none, self, Pawn(ffOther).PlayerReplicationInfo.PlayerID, Level.TimeSeconds, ffHitLocation, ffHitLocation - ffOther.Location, ffStartTrace, class'LCStatics'.static.CompressRotator(ffRot), 3);
 	else
 	{
 		if ( ffOther == none )
-			LCChan.ffSendHit( ffOther, self, -1, Level.TimeSeconds, ffHitLocation, vect(0,0,0), ffRot, ffStartTrace, class'LCStatics'.static.CompressRotator(ffRot), 3);
+			LCChan.ffSendHit( ffOther, self, -1, Level.TimeSeconds, ffHitLocation, vect(0,0,0), ffStartTrace, class'LCStatics'.static.CompressRotator(ffRot), 3);
 		else
-			LCChan.ffSendHit( ffOther, self, -1, Level.TimeSeconds, ffHitLocation, ffHitLocation - ffOther.Location, ffRot, ffStartTrace, class'LCStatics'.static.CompressRotator(ffRot), 3);
+			LCChan.ffSendHit( ffOther, self, -1, Level.TimeSeconds, ffHitLocation, ffHitLocation - ffOther.Location, ffStartTrace, class'LCStatics'.static.CompressRotator(ffRot), 3);
 	}
 }
 

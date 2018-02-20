@@ -16,7 +16,9 @@ var float pwAdjust;
 var float pwChain;
 var float ProjAdv;
 var Weapon CurWeapon, PendingWeapon;
+var vector OldPosition;
 var rotator OldView;
+var float OldTimeStamp;
 var int CurrentSWJumpPad;
 var int ClientPredictCap;
 
@@ -48,11 +50,13 @@ struct ShotData
 {
 	var private Actor ffOther;
 	var private Weapon Weap;
-	var private int ffID, CmpRot, ShootFlags;
+	var private int CmpRot, ShootFlags;
 	var private float ffTime;
 	var private vector ffHit, ffOff, ffStartTrace;
-	var private rotator ffView;
 	var private float ffAccuracy;
+	var byte Imprecise;
+	var bool bPlayerValidated;
+	var bool bAccuracyValidated;
 };
 var private ShotData SavedShots[8];
 var private int ffISaved;
@@ -70,17 +74,16 @@ replication
 }
 
 //Saves hit info, processes after movement physics occurs, do simplest of checks
-function ffSendHit( Actor ffOther, Weapon Weap, int ffID, float ffTime, vector ffHit, vector ffOff, rotator ffView, vector ffStartTrace, int CmpRot, int ShootFlags, optional float ffAccuracy)
+//This function never arrives earlier than corresponding ServerMove
+//But another later ServerMove may arrive after this one
+function ffSendHit( Actor ffOther, Weapon Weap, int ffID, float ffTime, vector ffHit, vector ffOff, vector ffStartTrace, int CmpRot, int ShootFlags, optional float ffAccuracy)
 {
-	if ( ffISaved > 8 || (Weap == none) || (CurWeapon != Weap) )
+	local XC_LagCompensator LC;
+	
+	if ( ffISaved > 8 || !bUseLC 
+		|| (Weap == none) || (CurWeapon != Weap) || Weap.IsInState('DownWeapon')
+		|| (ffOther != none && ffID != -1) )
 		return;
-	if ( ffOther != none && ffID != -1 ) //Process this here
-		return;
-	if ( Weap.IsInState('DownWeapon') )
-	{
-		RejectShot("DOWNWEAPON State");
-		return;
-	}
 	if ( int(ffAccuracy != 0) + int((ShootFlags >>> 16) == 0) != 1 )
 	{
 		RejectShot("Accuracy("$ffAccuracy$") and ShootFlags("$ShootFlags$") inconsistency");
@@ -88,85 +91,120 @@ function ffSendHit( Actor ffOther, Weapon Weap, int ffID, float ffTime, vector f
 	}
 	if ( !LCComp.ffClassifyShot(ffTime) ) //Time classification failure
 		return;
-
-
-	if ( !bAlreadyProcessed )
+	if ( ffID != -1 ) //Find player reference
 	{
-		bAlreadyProcessed = true;
-		if ( !ProcessHit( ffOther, Weap, ffID, ffTime, ffHit, ffOff, ffView, ffStartTrace, CmpRot, ShootFlags, ffAccuracy) )
-			Goto TO_QUEUE;
-		return;
+		LC = LCActor.ffFindCompForId( ffID);
+		if ( LC != None )
+			ffOther = LC.ffOwner;
+		if ( ffOther == None )
+			return;
 	}
-	TO_QUEUE: //Give this shot another opportunity to process at the end of the frame
-	Log("Shot delayed to end of frame",'LagCompensator');
+		
 	SavedShots[ffISaved].ffOther = ffOther;
 	SavedShots[ffISaved].Weap = Weap;
-	SavedShots[ffISaved].ffID = ffID;
 	SavedShots[ffISaved].ffTime = ffTime;
 	SavedShots[ffISaved].ffHit = ffHit;
 	SavedShots[ffISaved].ffOff = ffOff;
-	SavedShots[ffISaved].ffView = ffView;
 	SavedShots[ffISaved].ffStartTrace = ffStartTrace;
 	SavedShots[ffISaved].CmpRot = CmpRot;
 	SavedShots[ffISaved].ShootFlags = ShootFlags;
 	SavedShots[ffISaved].ffAccuracy = ffAccuracy;
+	SavedShots[ffISaved].bPlayerValidated = false;
+	SavedShots[ffISaved].bAccuracyValidated = false;
+	SavedShots[ffISaved].Imprecise = byte(LCComp.ImpreciseTimer > 0);
+	
+	if ( !bAlreadyProcessed )
+	{
+		bAlreadyProcessed = true;
+		if ( ProcessHit( SavedShots[ffISaved]) || SavedShots[ffISaved].Imprecise >= 20 ) //Shots with Imprecise >= 20 should not be delayed
+		{
+			SavedShots[ffISaved].Weap = none;
+			SavedShots[ffISaved].ffOther = none;
+			return;
+		}
+	}
 	ffISaved++;
 }
 
-function bool ProcessHit( Actor ffOther, Weapon Weap, int ffID, float ffTime, vector ffHit, vector ffOff, rotator ffView, vector ffStartTrace, int CmpRot, int ShootFlags, float ffAccuracy)
+function bool ProcessHit( out ShotData Data)
 {
 	local XC_LagCompensator ffLC;
 	local vector X, Y, Z, EndTrace;
 	local float Range, CalcPing;
-	local byte Imprecise;
 	local int Seed;
 
-	if ( Weap == none || Weap.bDeleteMe || Pawn(Owner).Weapon != Weap ) //Fixes a weapon toss exploit that allows teamkilling
+	if ( Data.Weap == none || Data.Weap.bDeleteMe || Pawn(Owner).Weapon != Data.Weap ) //Fixes a weapon toss exploit that allows teamkilling
+		return false;
+	
+	if ( Data.ffAccuracy != float(Data.Weap.GetPropertyText("ffAimError")) ) //Weapon aim error mismatch
 	{
-		RejectShot( "Bad weapon");
+		RejectShot("Aim error mismatch:"@Data.ffAccuracy@"vs"@Data.Weap.GetPropertyText("ffAimError"));
 		return false;
 	}
-	
-	Imprecise = byte(LCComp.ImpreciseTimer > 0);
-	if ( ffAccuracy != 0 )
-		Seed = ShootFlags >>> 16;
-	if ( !bUseLC || !LCActor.FastValidate( self, ffOther, ffID, Weap, CmpRot, Owner.Location, ffStartTrace, ffHit, Imprecise, ffAccuracy, ShootFlags) ) //NEEDS FIXING!
-		return false;
+	if ( Data.ffAccuracy != 0 )
+		Seed = Data.ShootFlags >>> 16;
 
-	LCComp.ffCurRegTimer = float(Weap.GetPropertyText("ffRefireTimer")); //Register this timer as current shoot timer
-	if ( (LCComp.ImpreciseTimer <= 0) && (Imprecise > 0) ) //Player skipped a security check
+	//Validate the player's view and shoot position, must be done only once
+	if ( !Data.bPlayerValidated )
+	{
+		if ( !LCComp.ValidatePlayerView( Data.ffTime, Data.ffStartTrace, Data.CmpRot, Data.Imprecise) )
+			return false;
+		Data.bPlayerValidated = true;
+	}
+	//Validate the shoot dir and weapon optional aim accuracy
+	if ( !Data.bAccuracyValidated )
+	{
+		if ( !LCActor.ValidateAccuracy( self, Data.CmpRot, Data.ffStartTrace, Data.ffHit, Data.ffAccuracy, Data.ShootFlags, Data.Imprecise) )
+			return false;
+		Data.bAccuracyValidated = true;
+	}
+
+	LCComp.ffCurRegTimer = float(Data.Weap.GetPropertyText("ffRefireTimer")); //Register this timer as current shoot timer
+	if ( (LCComp.ImpreciseTimer <= 0) && (Data.Imprecise > 0) ) //Player skipped a security check
 		LCComp.ImpreciseTimer = LCComp.ffCurRegTimer * 4;
 	LCComp.ffRefireTimer += LCComp.ffCurRegTimer; //Register this new shot in the refire protection
 
-	if  ( ffID != -1 )
-		ffOther = LCComp.ffCheckHit( ffID, ffHit, ffOff, ffView);
-
-	CalcPing = float(LCComp.ffLastPing) / 1000.0;
-	if ( (ffOther == none) || !Class'LCStatics'.static.RelevantHitActor(ffOther, PlayerPawn(Owner), CalcPing - ProjAdv) ) //Shot missed, get another target
+	if  ( (Pawn(Data.ffOther) != None) && (Pawn(Data.ffOther).PlayerReplicationInfo != None) )
 	{
-		if ( (ShootFlags & 2) == 0 )
+		ffLC = LCActor.ffFindCompFor( Pawn(Data.ffOther));
+		if ( ffLC != None )
+			Data.ffOther = LCComp.ffCheckHit( ffLC, Data.ffHit, Data.ffOff, class'LCStatics'.static.DecompressRotator(Data.CmpRot) );
+		else
+			Data.ffOther = None;
+	}
+
+	if ( Data.Imprecise >= 2 )
+	{
+		RejectShot("TOO MANY ERRORS ACCUMULATED");
+		return false;
+	}
+	
+	CalcPing = float(LCComp.ffLastPing) / 1000.0;
+	if ( (Data.ffOther == none) || !Class'LCStatics'.static.RelevantHitActor(Data.ffOther, PlayerPawn(Owner), CalcPing - ProjAdv) ) //Shot missed, get another target
+	{
+		if ( (Data.ShootFlags & 2) == 0 )
 		{
 			GetAxes( Pawn(Owner).ViewRotation, X, Y, Z);
-			if ( (ShootFlags & 1) == 0 )
-				ffStartTrace = Owner.Location + Pawn(Owner).BaseEyeheight * vect(0,0,1);
+			if ( (Data.ShootFlags & 1) == 0 )
+				Data.ffStartTrace = Owner.Location + Pawn(Owner).BaseEyeheight * vect(0,0,1);
 			else
-				ffStartTrace = Owner.Location + Weap.CalcDrawOffset() + Weap.FireOffset.Y * Y + Weap.FireOffset.Z * Z;
+				Data.ffStartTrace = Owner.Location + Data.Weap.CalcDrawOffset() + Data.Weap.FireOffset.Y * Y + Data.Weap.FireOffset.Z * Z;
 		}
 		else
-			GetAxes( rotator(ffHit - ffStartTrace), X, Y, Z);
+			GetAxes( rotator(Data.ffHit - Data.ffStartTrace), X, Y, Z);
 		Range = 10000;
-		if ( (ShootFlags & 4) > 0 )			Range += 10000;
-		if ( (ShootFlags & 8) > 0 )			Range += 20000;
-		EndTrace = ffStartTrace + X * Range;
+		if ( (Data.ShootFlags & 4) > 0 )			Range += 10000;
+		if ( (Data.ShootFlags & 8) > 0 )			Range += 20000;
+		EndTrace = Data.ffStartTrace + X * Range;
 		if ( Seed > 0 )
-			EndTrace += class'LCStatics'.static.StaticAimError( Y, Z, ffAccuracy, Seed);
-		ffOther = Class'LCStatics'.static.ffIrrelevantShot( ffHit, ffOff, EndTrace, ffStartTrace, Pawn(Owner), CalcPing - ProjAdv );
-		Weap.ProcessTraceHit( ffOther, ffHit, ffOff, X, Y, Z);
+			EndTrace += class'LCStatics'.static.StaticAimError( Y, Z, Data.ffAccuracy, Seed);
+		Data.ffOther = Class'LCStatics'.static.ffIrrelevantShot( Data.ffHit, Data.ffOff, EndTrace, Data.ffStartTrace, Pawn(Owner), CalcPing - ProjAdv );
+		Data.Weap.ProcessTraceHit( Data.ffOther, Data.ffHit, Data.ffOff, X, Y, Z);
 		return true;
 	}
-	ffHit = ffOther.Location + ffOff;
-	GetAxes( rotator(ffHit - ffStartTrace), X, Y, Z);
-	Weap.ProcessTraceHit( ffOther, ffHit, -X, X, Y, Z);
+	Data.ffHit = Data.ffOther.Location + Data.ffOff;
+	GetAxes( rotator(Data.ffHit - Data.ffStartTrace), X, Y, Z);
+	Data.Weap.ProcessTraceHit( Data.ffOther, Data.ffHit, -X, X, Y, Z);
 	return true;
 }
 
@@ -175,6 +213,22 @@ function ffSetLC( bool bEnable)
 	if ( bUseLC == bEnable )
 		ffForceLC( bEnable);
 	bUseLC = bEnable;
+}
+
+simulated function ClientFire( optional bool bAlt)
+{
+	local PlayerPawn Player;
+
+	if ( !bAlt ) bDelayedFire = true;
+	else         bDelayedAltFire = true;
+
+	Player = PlayerPawn(Owner);
+	if ( Player != None )
+	{
+//		if ( !bAlt ) Player.bJustFired = true;
+//		else         Player.bJustAltFired = true;
+		Player.ClientUpdateTime = 5; //FORCE
+	}
 }
 
 simulated event PostNetBeginPlay()
@@ -305,7 +359,7 @@ function AddPlayer( PlayerPawn Other, XC_LagCompensation Master)
 	{
 		SetOwner( Other);
 		LCActor = Master;
-		LCComp = LCActor.ffGetLC( Other);
+		LCComp = LCActor.ffFindCompFor( Other);
 		GotoState('ServerOp');
 	}
 	else
@@ -322,9 +376,8 @@ state ServerOp
 		While ( i < ffISaved )
 		{
 			CurWeapon.Tick(0);
-			ProcessHit( SavedShots[i].ffOther, SavedShots[i].Weap, SavedShots[i].ffID, SavedShots[i].ffTime, SavedShots[i].ffHit, SavedShots[i].ffOff, SavedShots[i].ffView, SavedShots[i].ffStartTrace, SavedShots[i].CmpRot, SavedShots[i].ShootFlags, SavedShots[i].ffAccuracy);
+			ProcessHit( SavedShots[i]);
 			SavedShots[i].ffOther = none;
-			SavedShots[i].ffID = -1;
 			SavedShots[i].Weap = none;
 			i++;
 		}
@@ -340,8 +393,12 @@ state ServerOp
 		else
 			ProjAdv = (fMin(LCComp.ffLastPing, LCActor.MaxPredictNonLC / Level.TimeDilation) / 1000.f) * Level.TimeDilation;
 
-		if ( Owner != none )
-			OldView = Pawn(Owner).ViewRotation;
+		if ( PlayerPawn(Owner) != none )
+		{
+			OldPosition = Owner.Location;
+			OldView = PlayerPawn(Owner).ViewRotation;
+			OldTimeStamp = PlayerPawn(Owner).CurrentTimeStamp;
+		}
 	}
 Begin:
 	While ( Owner != none && !Owner.bDeleteMe )
@@ -509,12 +566,12 @@ simulated function LockSWJumpPads( class<Teleporter> PadClass)
 
 function RejectShot( coerce string Reason)
 {
-	Log( "LC REJECT: "$Reason,'LagCompensator');
+	Log( "LC Shot rejected: "$Reason,'LagCompensator');
 	if ( bReportReject )
 	{
 		bReportReject = false;
 		if ( PlayerPawn(Owner) != none )
-			PlayerPawn(Owner).ClientMessage( "LC REJECT: "$Reason);
+			PlayerPawn(Owner).ClientMessage( Reason);
 	}
 }
 

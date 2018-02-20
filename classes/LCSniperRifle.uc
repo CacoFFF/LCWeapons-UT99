@@ -73,7 +73,7 @@ simulated function PlayFiring()
 {
 	Super.PlayFiring();
 	if ( IsLC() && (Level.NetMode == NM_Client) )
-		LCChan.bDelayedFire = true;
+		LCChan.ClientFire();
 }
 
 //Modded for long range trace
@@ -126,9 +126,9 @@ simulated function ffTraceFire( optional float Accuracy)
 	ffOther = Class'LCStatics'.static.ffTraceShot(ffHitLocation,ffHitNormal,ffEndTrace,ffStartTrace,ffP);
 	ProcessTraceHit( ffOther, ffHitLocation, ffHitNormal, X, Y, Z);
 	if ( (Pawn(ffOther) != none) && (Pawn(ffOther).PlayerReplicationInfo != none ) )
-		LCChan.ffSendHit( none, self, class'LCStatics'.static.ffPCode(Pawn(ffOther)), Level.TimeSeconds, ffHitLocation, ffHitLocation - ffOther.Location, ffRot, ffStartTrace, class'LCStatics'.static.CompressRotator(ffRot), 12 | Seed, Accuracy);
+		LCChan.ffSendHit( none, self, Pawn(ffOther).PlayerReplicationInfo.PlayerID, Level.TimeSeconds, ffHitLocation, ffHitLocation - ffOther.Location, ffStartTrace, class'LCStatics'.static.CompressRotator(ffRot), 12 | Seed, Accuracy);
 	else
-		LCChan.ffSendHit( ffOther, self, -1, Level.TimeSeconds, ffHitLocation, ffHitLocation - ffOther.Location, ffRot, ffStartTrace, class'LCStatics'.static.CompressRotator(ffRot), 12 | Seed, Accuracy);
+		LCChan.ffSendHit( ffOther, self, -1, Level.TimeSeconds, ffHitLocation, ffHitLocation - ffOther.Location, ffStartTrace, class'LCStatics'.static.CompressRotator(ffRot), 12 | Seed, Accuracy);
 }
 
 simulated function ProcessTraceHit(Actor Other, Vector HitLocation, Vector HitNormal, Vector X, Vector Y, Vector Z)

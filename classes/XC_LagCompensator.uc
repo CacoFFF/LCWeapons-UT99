@@ -4,12 +4,13 @@
 //=============================================================================
 class XC_LagCompensator expands Info;
 
-//OBFSTART
+
+
 
 var XC_LagCompensation ffMaster;
 var XC_LagCompensator ffCompNext;
 var XC_CompensatorChannel CompChannel;
-var pawn ffOwner;
+var Pawn ffOwner;
 var XC_PlayerPosList PosList;
 var bool ffNoHit; //Fast access
 var int ffDelaying; //We're delaying hits in order to fix our time formula
@@ -26,10 +27,11 @@ var float ImpreciseTimer; //Give the player an opportunity to miss security chec
 var private bool ffCollideActors, ffBlockActors, ffBlockPlayers, ffProjTarget;
 var int ffMyShit;
 
-struct XC_PlayerPos
+struct XC_PlayerMove
 {
-	var() vector Location;
-	var() float ExtraDist;
+	var vector Location;
+	var rotator View;
+	var float Timestamp;
 };
 
 
@@ -109,6 +111,90 @@ function ffCorrectTimes( private float ffDelta)
 	ffResetTimeStamp();
 }
 
+
+function bool ValidatePlayerView( float ClientTimeStamp, vector StartTrace, int CmpRot, byte Imprecise)
+{
+	local rotator ClientView, ServerView;
+	local float alpha, lag, maxdelta;
+	local vector PlayerPos, X, Y, Z;
+	local PlayerPawn Player;
+	local bool bApproximateView;
+	
+	Player = PlayerPawn(ffOwner);
+	PlayerPos = Player.Location;
+	ClientView = class'LCStatics'.static.DecompressRotator( CmpRot);
+	ServerView = Player.ViewRotation;
+	if ( ClientTimeStamp > Player.CurrentTimeStamp ) //Wait
+		return false;
+	//Anything past this stage is full reject
+	Imprecise += 20;
+	if ( ClientTimeStamp < Player.CurrentTimeStamp )
+	{
+		bApproximateView = !class'LCStatics'.default.bXCGE_PlayerState || !HasPos(); //UTPure may cause No-Pos (diff ServerMove)
+		if ( !bApproximateView && !GetPos(ClientTimeStamp, PlayerPos, ServerView) )
+			return false;
+		else if ( bApproximateView )
+		{
+			alpha = (ClientTimeStamp-CompChannel.OldTimeStamp)/(Player.CurrentTimeStamp-CompChannel.OldTimeStamp);
+			ServerView = class'LCStatics'.static.AlphaRotation( ServerView, CompChannel.OldView, alpha );
+			PlayerPos = CompChannel.OldPosition + (Player.Location - CompChannel.OldPosition) * alpha;
+		}
+	}
+	
+	//Validate view
+	if ( bApproximateView )
+	{
+		if ( class'LCStatics'.static.CompareRotation( ServerView, ClientView) ) //Perfect match (stationary view)
+		{}
+		else if ( class'LCStatics'.static.ContainsRotator( ClientView, Player.ViewRotation, CompChannel.OldView, 0.5) ) //Contained in move area
+			Imprecise++;
+		else
+		{
+			CompChannel.RejectShot("ROTATION INCONSISTENCY");
+			return false;
+		}
+	}
+	else if ( !class'LCStatics'.static.CompareRotation( ServerView, ClientView) )
+	{
+		CompChannel.RejectShot("ROTATION MISMATCH");
+		return false;
+	}
+
+	//Validate shot starting position
+	lag = float(ffLastPing) * Level.TimeDilation * 0.001;
+	maxdelta = 20 + lag * 35 + VSize(Player.Velocity) * 0.10;
+	if ( Player.Base != None )
+	{
+		PlayerPos -= Player.Base.Velocity * (lag * 0.5); //Adjust to base
+		maxdelta += VSize(Player.Base.Velocity) * 0.10;
+	}
+	if ( Player.Weapon != None )
+	{
+		if ( LCSniperRifle(Player.Weapon) != None )
+			PlayerPos.Z += Player.EyeHeight;
+		else
+		{
+			GetAxes( ClientView, X, Y, Z);
+			PlayerPos += Player.Weapon.CalcDrawOffset() + Player.Weapon.FireOffset.Y * Y + Player.Weapon.FireOffset.Z * Z; 
+		}
+	}
+	alpha = VSize( PlayerPos - StartTrace);
+	if ( alpha > maxdelta*2 ) //Diff too big
+	{
+		CompChannel.RejectShot( "LOCATION DIFF = "$alpha@"vs"@(maxdelta*2) );
+		return false;
+	}
+	if ( alpha > maxdelta )
+		Imprecise++;
+		
+	Imprecise -= 20; //Undo reject
+	return true;
+}
+
+function bool XC_ValidateOldView()
+{
+}
+
 //Allow or deny hit
 function bool ffClassifyShot( private float ffClientTimeS)
 {
@@ -147,9 +233,8 @@ function bool ffClassifyShot( private float ffClientTimeS)
 	return true;
 }
 
-function Pawn ffCheckHit( private int ffID, private vector ffHit, private vector ffOff, private rotator ffView)
+function Pawn ffCheckHit( XC_LagCompensator ffOther, private vector ffHit, private vector ffOff, private rotator ffView)
 {
-	local private XC_LagCompensator ffOther;
 	local private float ffPing, ffBox;
 	local private XC_PlayerPos ffFirst, ffLast;
 	local private vector ffProj;
@@ -157,15 +242,7 @@ function Pawn ffCheckHit( private int ffID, private vector ffHit, private vector
 	local bool bImageDropping;
 	local byte Slot;
 
-	ffOther = ffMaster.ffCompList;
-	While ( ffOther != none )
-	{
-		if ( Class'LCStatics'.static.ffPCode(ffOther.ffOwner) == ffID )
-			break;
-		ffOther = ffOther.ffCompNext;
-	}
-	if ( ffOther == none )
-		return none;
+	Assert( ffOther != None);
 		
 	if ( !FastTrace( ffHit, ffOwner.Location + vect(0,0,1) * ffOwner.BaseEyeHeight) )  //Amplify!!!
 		return none;

@@ -121,9 +121,9 @@ simulated function ffTraceFire()
 	ffOther = Class'LCStatics'.static.ffTraceShot(ffHitLocation,ffHitNormal,ffEndTrace,ffStartTrace,ffP);
 	ProcessTraceHit( ffOther, ffHitLocation, ffHitNormal, X, Y, Z);
 	if ( (Pawn(ffOther) != none) && (Pawn(ffOther).PlayerReplicationInfo != none ) )
-		LCChan.ffSendHit( none, self, class'LCStatics'.static.ffPCode(Pawn(ffOther)), Level.TimeSeconds, ffHitLocation, ffHitLocation - ffOther.Location, ffRot, ffStartTrace, class'LCStatics'.static.CompressRotator(ffRot), 3);
+		LCChan.ffSendHit( none, self, Pawn(ffOther).PlayerReplicationInfo.PlayerID, Level.TimeSeconds, ffHitLocation, ffHitLocation - ffOther.Location, ffStartTrace, class'LCStatics'.static.CompressRotator(ffRot), 3);
 	else
-		LCChan.ffSendHit( ffOther, self, -1, Level.TimeSeconds, ffHitLocation, ffHitLocation - ffOther.Location, ffRot, ffStartTrace, class'LCStatics'.static.CompressRotator(ffRot), 3);
+		LCChan.ffSendHit( ffOther, self, -1, Level.TimeSeconds, ffHitLocation, ffHitLocation - ffOther.Location, ffStartTrace, class'LCStatics'.static.CompressRotator(ffRot), 3);
 }
 
 
@@ -199,7 +199,7 @@ simulated function PlayFiring()
 	PlayOwnedSound(FireSound, SLOT_None, Pawn(Owner).SoundDampening*4.0);
 	LoopAnim('Fire1', 0.20 + 0.20 * FireAdjust,0.05);
 	if ( IsLC() && (Level.NetMode == NM_Client) )
-		LCChan.bDelayedFire = true;
+		LCChan.ClientFire();
 }
 
 function float RateSelf( out int bUseAltMode )

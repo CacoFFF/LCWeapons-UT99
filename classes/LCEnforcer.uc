@@ -52,7 +52,7 @@ function SetSwitchPriority(pawn Other)
 //All of the unlagged code here
 simulated event KillCredit( actor Other)
 {
-	 if ( XC_CompensatorChannel(Other) != none )
+	if ( XC_CompensatorChannel(Other) != none )
 	{
 		LCChan = XC_CompensatorChannel(Other);
 		if ( LCEnforcer(SlaveEnforcer) != none )
@@ -83,7 +83,10 @@ simulated function PlayFiring()
 {
 	Super.PlayFiring();
 	if ( IsLC() && (Level.NetMode == NM_Client) )
+	{
 		SimTraceFire( 0.2);
+		LCChan.ClientFire(); //Force player to send positional update
+	}
 }
 
 simulated function PlayRepeatFiring()

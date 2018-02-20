@@ -182,7 +182,7 @@ function bool ffInsertNewPlayer( private pawn ffOther)
 	}
 }
 
-function XC_LagCompensator ffFindCompFor( private pawn ffOther)
+final function XC_LagCompensator ffFindCompFor( private pawn ffOther)
 {
 	local private XC_LagCompensator ffTmp;
 	
@@ -192,12 +192,12 @@ function XC_LagCompensator ffFindCompFor( private pawn ffOther)
 	return none;
 }
 
-function XC_LagCompensator ffGetLC( private pawn ffOther)
+final function XC_LagCompensator ffFindCompForId( private int Id)
 {
 	local private XC_LagCompensator ffTmp;
-
+	
 	For ( ffTmp=ffCompList ; ffTmp!=none ; ffTmp=ffTmp.ffCompNext )
-		if ( ffTmp.ffOwner == ffOther )
+		if ( ffTmp.ffOwner.PlayerReplicationInfo.PlayerId == Id )
 			return ffTmp;
 	return none;
 }
@@ -343,8 +343,7 @@ function float ffMaxLag()
 }
 //OBFEND
 
-//Fast validation checks
-function bool FastValidate( XC_CompensatorChannel LCChan, Actor Other, int HashID, Weapon aWeap, int CmpRot, vector PLoc, vector Start, vector End, out byte Imprecise, float Accuracy, int Flags)
+function bool ValidateAccuracy( XC_CompensatorChannel LCChan, int CmpRot, vector Start, vector End, float Accuracy, int Flags, out byte Imprecise)
 {
 	local vector aVec;
 	local pawn P;
@@ -352,17 +351,7 @@ function bool FastValidate( XC_CompensatorChannel LCChan, Actor Other, int HashI
 	local float fDist;
 
 	P = Pawn(LCChan.Owner);
-	if ( P.Health < 0 )
-		return false;
 	if ( Accuracy != 0 )
-	{
-		if ( string(Accuracy) != aWeap.GetPropertyText("ffAimError") ) //Weapon aim error mismatch
-		{
-			LCChan.RejectShot("Aim error mismatch:"@Accuracy@"vs"@aWeap.GetPropertyText("ffAimError"));
-			return false;
-		}
-	}
-	if ( Accuracy > 0 )
 	{
 		fDist = 10000;
 		if ( (Flags & 4) > 0 )			fDist += 10000;
@@ -371,6 +360,7 @@ function bool FastValidate( XC_CompensatorChannel LCChan, Actor Other, int HashI
 	}
 	else
 		aVec = Vector(class'LCStatics'.static.DecompressRotator(CmpRot));
+
 	if ( (VSize(End-Start) > 30) && (VSize( aVec - Normal(End-Start)) > 0.05) )
 	{
 		if ( (Imprecise > 0) || (VSize( aVec - Normal(End-Start)) > 0.20) )
@@ -378,45 +368,9 @@ function bool FastValidate( XC_CompensatorChannel LCChan, Actor Other, int HashI
 			LCChan.RejectShot( "DIRECTION DIFF IS :"$ VSize( aVec - Normal(End-Start)));
 			return false;
 		}
-		else Imprecise++;	
+		Imprecise++;	
 	}
-	if ( Accuracy > 0 )
-		aVec = Vector(class'LCStatics'.static.DecompressRotator(CmpRot));
-	if ( (VSize( aVec - Vector(P.ViewRotation)) > 0.07) && (VSize( aVec - Vector(LCChan.OldView)) > 0.07) )
-	{
-		FixedRot = rotator(vector(P.ViewRotation) + vector(LCChan.OldView));
-		if ( VSize( aVec - Vector(FixedRot)) < 0.07 )
-		{}
-		else if ( (Imprecise > 0) || (VSize( aVec - Vector(FixedRot)) > 0.22) )
-		{
-			LCChan.RejectShot( "VROTATION DIFFERENCE IS: "$ VSize( aVec - Vector(P.ViewRotation)));
-			return false;
-		}
-		else Imprecise++;
-	}
-	aVec.X = VSize(P.Location - P.OldLocation); //Tick loc difference, helps low Rate servers
-	if ( P.Base != none )
-		aVec.X += VSize(P.Base.Velocity) * 0.10;
-	if ( P.Physics == PHYS_Walking )
-		aVec.X += 20 + VSize(P.Velocity) * 0.05;
-	if ( VSize(WeaponStartTrace(aWeap) - Start) > (50 + aVec.X + VSize(P.Velocity) * 0.20) )
-	{
-		if ( (Imprecise > 0) || (VSize(WeaponStartTrace(aWeap) - Start) > (75 + aVec.X * 1.1 + VSize(P.Velocity) * 0.32)) )
-		{
-			LCChan.RejectShot( "START DIFF = "$int(VSize(WeaponStartTrace(aWeap) - Start)) );
-			return false;
-		}
-		else Imprecise++;
-	}
-	if ( VSize( PLoc - P.Location) > (45 + aVec.X + VSize(P.Velocity) * 0.15) )
-	{
-		if ( (Imprecise > 0) || (VSize( PLoc - P.Location) > (60 + aVec.X * 1.1 + VSize(P.Velocity) * 0.28)) )
-		{
-			LCChan.RejectShot( "LOCATION DIFF = "$int(VSize( PLoc - P.Location)) );
-			return false;
-		}
-		else Imprecise++;
-	}
+
 	return true;
 }
 
@@ -499,6 +453,7 @@ function XC_GenericPosList AddGenericPos( actor Other)
 	Tmp.GotoState('Active','Begin');
 	return Tmp;
 }
+
 
 defaultproperties
 {
