@@ -172,7 +172,8 @@ static final function rotator DecompressRotator( int A)
 //***********************************************************
 static final function bool CompareRotation( rotator A, rotator B)
 {
-	return ((A.Yaw & 65534) == (B.Yaw & 65534)) && ((A.Pitch & 65534) == (B.Pitch & 65534));
+	return (Abs((A.Yaw & 65535) - (B.Yaw & 65535)) < 3)
+	&& (Abs((A.Pitch & 65535) - (B.Pitch & 65535)) < 3);
 }
 
 //****************************************************************

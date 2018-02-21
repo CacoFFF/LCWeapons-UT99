@@ -150,13 +150,13 @@ function bool ValidatePlayerView( float ClientTimeStamp, vector StartTrace, int 
 			Imprecise++;
 		else
 		{
-			CompChannel.RejectShot("ROTATION INCONSISTENCY");
+			CompChannel.RejectShot("ROTATION INCONSISTENCY"@ServerView@ClientView);
 			return false;
 		}
 	}
 	else if ( !class'LCStatics'.static.CompareRotation( ServerView, ClientView) )
 	{
-		CompChannel.RejectShot("ROTATION MISMATCH");
+		CompChannel.RejectShot("ROTATION MISMATCH"@ServerView@ClientView);
 		return false;
 	}
 
@@ -166,8 +166,10 @@ function bool ValidatePlayerView( float ClientTimeStamp, vector StartTrace, int 
 	if ( Player.Base != None )
 	{
 		PlayerPos -= Player.Base.Velocity * (lag * 0.5); //Adjust to base
-		maxdelta += VSize(Player.Base.Velocity) * 0.10;
+		maxdelta += VSize(Player.Base.Velocity) * 0.10 * (1 + lag * 2);
 	}
+	if ( Player.DodgeDir == DODGE_Active )
+		maxdelta += Player.GroundSpeed * lag;
 	if ( Player.Weapon != None )
 	{
 		if ( LCSniperRifle(Player.Weapon) != None )
