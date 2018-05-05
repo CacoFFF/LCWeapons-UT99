@@ -25,7 +25,7 @@ event Tick( float DeltaTime)
 	local int NewFlags;
 
 	i = Master.GlobalPos;
-	j = (i - 1) % 128;
+	j = (i - 1) & 0x7F;
 	SavedLoc[i] = ffOwner.ffOwner.Location;
 	ExtraDist[i] = VSize(ffOwner.ffOwner.Velocity) * 0.2;
 	if ( !(ffOwner.ffOwner.bProjTarget && ffOwner.ffOwner.bCollideActors) )
@@ -111,7 +111,7 @@ function vector DelayLoc( int Slot, float Delay)
 	Delay *= Level.TimeDilation;
 	if ( (Level.TimeSeconds - STimeStamp[Slot]) > Delay )
 		return SavedLoc[Slot];
-	i = (Slot - 1) % 128;
+	i = (Slot - 1) & 0x7F;
 	if ( (Level.TimeSeconds - STimeStamp[i]) < Delay )
 		return SavedLoc[i];
 	Delay -= Level.TimeSeconds - STimeStamp[Slot];
@@ -121,12 +121,12 @@ function vector DelayLoc( int Slot, float Delay)
 */
 function float AlphaSlots( byte Slot, float Delay)
 {
-	return class'LCStatics'.static.GetAlpha( Delay * Level.TimeDilation, STimeStamp[Slot], STimeStamp[byte(Slot - 1) % 128]);
+	return class'LCStatics'.static.GetAlpha( Delay * Level.TimeDilation, STimeStamp[Slot], STimeStamp[(Slot - 1) & 0x7F]);
 }
 
 function vector AlphaLoc( byte Slot, float Alpha)
 {
-	return class'LCStatics'.static.VLerp( Alpha, SavedLoc[Slot], SavedLoc[byte(Slot - 1) % 128]);
+	return class'LCStatics'.static.VLerp( Alpha, SavedLoc[Slot], SavedLoc[(Slot - 1) & 0x7F]);
 }
 
 function bool HasTeleported( byte Slot)

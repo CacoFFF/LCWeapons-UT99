@@ -134,10 +134,10 @@ function Mutate (string MutateString, PlayerPawn Sender)
 event Tick( private float ffDelta)
 {
 	bNeedsHiddenEffects = (LCS.default.XCGE_Version < 17) || (XCGE == none) || !bool(XCGE.GetPropertyText("bUseNewRelevancy"));
-	GlobalPos = (GlobalPos + 1) % 128; //Every tick
+	GlobalPos = (GlobalPos + 1) & 0x7F; //Every tick
 	bUpdateGeneric = ((GlobalPos % 4) == 0);
 	if ( bUpdateGeneric )
-		GenericPos = (GenericPos + 1) % 32; //Every 4 ticks
+		GenericPos = (GenericPos + 1) & 0x1F; //Every 4 ticks
 }
 
 

@@ -264,7 +264,7 @@ function Pawn ffCheckHit( XC_LagCompensator ffOther, private vector ffHit, priva
 	//Find the 2 slotted locs we're using
 	Slot = ffOther.PosList.FindTopSlot( ffPing);
 	ffFirst = ConvertPSlot( ffOther.PosList, Slot);
-	ffLast = ConvertPSlot( ffOther.PosList, (Slot-1)%128);
+	ffLast = ConvertPSlot( ffOther.PosList, (Slot-1)&0x7F);
 	
 	//Let's see if the line's doing something!
 	if ( ffOther.PosList.HasDucked( Slot) )

@@ -58,7 +58,7 @@ function UpdateNow()
 	local byte i, j;
 	local int NewFlags;
 	i = Master.GenericPos;
-	j = (i - 1) % 32;
+	j = (i - 1) & 0x1F; //32
 	SavedLoc[i] = Compensated.Location;
 	ExtraDist[i] = VSize(Compensated.Velocity) * 0.2;
 	if ( !(Compensated.bProjTarget && Compensated.bCollideActors) )
@@ -135,7 +135,7 @@ function int FindTopSlot( private float ffDelayed) //Time dilation must be appli
 
 function byte ByteDiff( byte bBase, int Diff)
 {
-	return (bBase - Diff) % 32;	
+	return (bBase - Diff) & 0x1F; //32
 }
 
 function float GetEDist( int Slot)
@@ -158,12 +158,12 @@ function CorrectTimeStamp( float Offset)
 
 function float AlphaSlots( byte Slot, float Delay)
 {
-	return class'LCStatics'.static.GetAlpha( Delay * Level.TimeDilation, STimeStamp[Slot], STimeStamp[byte(Slot - 1) % 32]);
+	return class'LCStatics'.static.GetAlpha( Delay * Level.TimeDilation, STimeStamp[Slot], STimeStamp[(Slot - 1) & 0x1F]);
 }
 
 function vector AlphaLoc( byte Slot, float Alpha)
 {
-	return class'LCStatics'.static.VLerp( Alpha, SavedLoc[Slot], SavedLoc[byte(Slot - 1) % 32]);
+	return class'LCStatics'.static.VLerp( Alpha, SavedLoc[Slot], SavedLoc[(Slot - 1) & 0x1F]);
 }
 
 function bool HasTeleported( byte Slot)
