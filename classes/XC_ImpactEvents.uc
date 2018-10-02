@@ -131,8 +131,8 @@ event PostTouch( Actor Other)
 	if ( PendingTouch != none && PendingTouch != self )
 	{
 		Player.Actor.PendingTouch = PendingTouch;
-		PendingTouch.PostTouch( Player.Actor);
-		PendingTouch = none;
+		PendingTouch = none; //Infinite loop prevention
+		Player.Actor.PendingTouch.PostTouch( Player.Actor);
 	}
 }
 

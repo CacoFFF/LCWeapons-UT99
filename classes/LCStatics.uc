@@ -4,8 +4,8 @@
 
 class LCStatics expands Object;
 
-#exec OBJ LOAD FILE="LCPureUtil.u" PACKAGE=LCWeapons_0019
-#exec OBJ LOAD FILE="SiegeUtil_A.u" PACKAGE=LCWeapons_0019
+#exec OBJ LOAD FILE="LCPureUtil.u" PACKAGE=LCWeapons_0020
+#exec OBJ LOAD FILE="SiegeUtil_A.u" PACKAGE=LCWeapons_0020
 
 const MULTIPLIER = 0x015a4e35;
 const INCREMENT = 1;

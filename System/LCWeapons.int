@@ -1,0 +1,5 @@
+[Public]
+Object=(Name=LCWeapons_0020.LCMutator,Class=Class,MetaClass=Engine.Mutator,Description="Lag Compensator")
+Object=(Name=LCWeapons_0020.FV_ColoredShock,Class=Class,MetaClass=Engine.Mutator,Description="LC: ColoredShock, Requires Lag Compensator mutator loaded!")
+Object=(Name=ChamRifle_v2.Rifle_HeadshotMut,Class=Class,MetaClass=Engine.Mutator,Description="Cham Rifle")
+
