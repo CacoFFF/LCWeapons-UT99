@@ -57,6 +57,7 @@ struct ShotData
 	var byte Imprecise;
 	var bool bPlayerValidated;
 	var bool bAccuracyValidated;
+	var float MaxTimeStamp;
 };
 var private ShotData SavedShots[8];
 var private int ffISaved;
@@ -79,6 +80,9 @@ replication
 function ffSendHit( Actor ffOther, Weapon Weap, int ffID, float ffTime, vector ffHit, vector ffOff, vector ffStartTrace, int CmpRot, int ShootFlags, optional float ffAccuracy)
 {
 	local XC_LagCompensator LC;
+	
+	if ( ffISaved > 8 )
+		Pawn(Owner).ClientMessage("Saved shot list is full!");
 	
 	if ( ffISaved > 8 || !bUseLC 
 		|| (Weap == none) || (CurWeapon != Weap) || Weap.IsInState('DownWeapon')
@@ -112,19 +116,48 @@ function ffSendHit( Actor ffOther, Weapon Weap, int ffID, float ffTime, vector f
 	SavedShots[ffISaved].bPlayerValidated = false;
 	SavedShots[ffISaved].bAccuracyValidated = false;
 	SavedShots[ffISaved].Imprecise = byte(LCComp.ImpreciseTimer > 0);
+	SavedShots[ffISaved].MaxTimeStamp = Level.TimeSeconds + Level.TimeDilation * 0.5;
+	ffISaved++;
 	
 	if ( !bAlreadyProcessed )
 	{
+		ProcessHitList();
 		bAlreadyProcessed = true;
-		if ( ProcessHit( SavedShots[ffISaved]) || SavedShots[ffISaved].Imprecise >= 20 ) //Shots with Imprecise >= 20 should not be delayed
-		{
-			SavedShots[ffISaved].Weap = none;
-			SavedShots[ffISaved].ffOther = none;
-			return;
-		}
 	}
-	ffISaved++;
 }
+
+function ProcessHitList()
+{
+	local int i;
+	
+	if ( PlayerPawn(Owner) == None )
+		return;
+	
+	while ( i < ffISaved )
+	{
+		if ( Level.TimeSeconds > SavedShots[i].MaxTimeStamp )
+		{
+			RejectShot("Shot timed out");
+			Goto REMOVE_FROM_LIST;
+		}
+
+		//Wait until player sends a good position update
+		if ( SavedShots[i].ffTime <= PlayerPawn(Owner).CurrentTimeStamp )
+		{
+			if ( ProcessHit(SavedShots[i])
+				|| SavedShots[i].Imprecise >= 20 ) 
+				Goto REMOVE_FROM_LIST;
+		}
+		i++;
+	REMOVE_FROM_LIST:
+		if ( i != --ffISaved )
+			SavedShots[i] = SavedShots[ffISaved];
+		SavedShots[ffISaved].Weap = None;
+		SavedShots[ffISaved].ffOther = None;
+	}
+	bAlreadyProcessed = false;
+}
+
 
 function bool ProcessHit( out ShotData Data)
 {
@@ -225,8 +258,6 @@ simulated function ClientFire( optional bool bAlt)
 	Player = PlayerPawn(Owner);
 	if ( Player != None )
 	{
-//		if ( !bAlt ) Player.bJustFired = true;
-//		else         Player.bJustAltFired = true;
 		Player.ClientUpdateTime = 5; //FORCE
 	}
 }
@@ -276,6 +307,21 @@ simulated state ClientOp
 				T.Role = OldRole;
 			}
 	}
+	simulated function bool AboutToFinishFire( float DeltaTime)
+	{
+		local float TopFrame;
+		if ( CurWeapon != None
+			&& !CurWeapon.bRapidFire
+			&& CurWeapon.IsAnimating() )
+		{
+			if ( CurWeapon.AnimLast == 0 ) 
+				TopFrame = 1;
+			else
+				TopFrame = Abs(CurWeapon.AnimLast);
+			//*2 because weapon hasn't ticked, and we need to advance TWO frames instead of ONE
+			return (CurWeapon.AnimFrame < TopFrame) && (CurWeapon.AnimFrame + CurWeapon.AnimRate * DeltaTime * 2 >= TopFrame); 
+		}
+	}
 	simulated event Tick( float DeltaTime)
 	{
 		if ( LocalPlayer.Weapon != CurWeapon )
@@ -309,6 +355,10 @@ simulated state ClientOp
 		{
 			CurWeapon.KillCredit( self);
 			bDelayedAltFire = false;
+		}
+		if ( AboutToFinishFire(DeltaTime) ) //FORCE UPDATE
+		{
+			LocalPlayer.ClientUpdateTime = 5; 
 		}
 		if ( bJustSwitched && TournamentWeapon(CurWeapon).bCanClientFire )
 		{
@@ -373,16 +423,7 @@ state ServerOp
 		local int i;
 		
 		bReportReject = true;
-		While ( i < ffISaved )
-		{
-			CurWeapon.Tick(0);
-			ProcessHit( SavedShots[i]);
-			SavedShots[i].ffOther = none;
-			SavedShots[i].Weap = none;
-			i++;
-		}
-		ffISaved = 0;
-		bAlreadyProcessed = false;
+		ProcessHitList();
 		if ( LCActor.bWeaponAnim )
 			cAdv = (float(LCComp.ffLastPing) / 1000) * Level.TimeDilation;
 
