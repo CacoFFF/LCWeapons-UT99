@@ -5,6 +5,7 @@ var Weapon ReplaceThis, ReplaceWith;
 var LCSpawnNotify ReplaceSN;
 var bool bApplySNReplace;
 var bool bTeamShock;
+var string LoadedClasses;
 
 //Find known custom arenas, replace with LC arenas
 event PreBeginPlay()
@@ -76,13 +77,15 @@ function Class<Weapon> MyDefaultWeapon()
 	return Level.Game.DefaultWeapon;
 }
 
-function bool IsRelevant(Actor Other, out byte bSuperRelevant)
+function bool IsRelevant( Actor Other, out byte bSuperRelevant)
 {
 	local int Result;
 
-	if ( Other.bIsPawn && Other.IsA('ScriptedPawn') )
-	{	AddGenericPos( Other);
-		return true;	}
+	if ( ScriptedPawn(Other) != None )
+	{
+		AddGenericPos( Other);
+		return true;
+	}
 
 	Result = LCReplacement(Other); //0 = replace, 1 = no replace, 2 = delayed replace
 	if ( Result == 1 && (NextMutator != None) ) //Do not let mutators alter delayed replacements
@@ -91,87 +94,77 @@ function bool IsRelevant(Actor Other, out byte bSuperRelevant)
 	return (Result > 0);
 }
 
-function int LCReplacement (Actor Other)
+function int LCReplacement( Actor Other)
 {
-	if ( Weapon(Other) == none )
+	local Weapon W;
+	
+	W = Weapon(Other);
+	if ( W == none )
 		return 1;
 
-	if ( Other.GetPropertyText("LCChan") != "" )
+	if ( W.GetPropertyText("LCChan") != "" )
 	{
-		Other.KillCredit(self);
+		W.KillCredit(self);
 		return 1;
 	}
 		
-	if ( Other.Class == class'ImpactHammer' )
-		return DoReplace(Weapon(Other),class'LCImpactHammer');
-	else if ( ClassIsChildOf( Other.Class, class'Enforcer') )
+	if ( W.Class == class'ImpactHammer' )
+		return DoReplace(W,class'LCImpactHammer');
+	else if ( ClassIsChildOf( W.Class, class'Enforcer') )
 	{
-		if ( Other.Class == class'Enforcer' )
-			return DoReplace(Weapon(Other),class'LCEnforcer');
-		else if ( Other.IsA('sgEnforcer') )
-			return DoReplace(Weapon(Other),class'LCEnforcer',,true);
+		if ( W.Class == class'Enforcer' )		return DoReplace(W,class'LCEnforcer');
+		else if ( W.IsA('sgEnforcer') )			return DoReplace(W,class'LCEnforcer',,,true);
 	}
-	else if ( ClassIsChildOf( Other.Class, class'ShockRifle') )
+	else if ( ClassIsChildOf( W.Class, class'ShockRifle') )
 	{
-		if ( Other.Class == class'ShockRifle' )
-			return DoReplace(Weapon(Other),class'LCShockRifle');
-		if ( Other.Class == class'SuperShockRifle' )
-			return DoReplace(Weapon(Other),class'LCSuperShockRifle');
-		if ( Other.IsA('AdvancedShockRifle') )
-			return DoReplace(Weapon(Other),class'LCAdvancedShockRifle');
+		if ( W.Class == class'ShockRifle' )			return DoReplace(W,class'LCShockRifle');
+		if ( W.Class == class'SuperShockRifle' )	return DoReplace(W,class'LCSuperShockRifle');
+		if ( W.IsA('AdvancedShockRifle') )			return DoReplace(W,class'LCAdvancedShockRifle',class'LCShockRifleLoader');
 	}
-	else if ( Other.default.Mesh == LodMesh'Botpack.RiflePick' )	//This is a sniper rifle!
+	else if ( W.default.Mesh == LodMesh'Botpack.RiflePick' )	//This is a sniper rifle!
 	{
-		if ( ClassIsChildOf( Other.Class, class'SniperRifle') )
+		if ( ClassIsChildOf( W.Class, class'SniperRifle') )
 		{
-			if ( Other.Class == class'SniperRifle' )
-				return DoReplace(Weapon(Other),class'LCSniperRifle');
-			else if ( Other.IsA('SniperRifle2x') ) //AWM_Beta1 rifle
-				return DoReplace(Weapon(Other),class'LCSniperRifle',,true);
+			if ( W.Class == class'SniperRifle' )	return DoReplace(W,class'LCSniperRifle');
+			else if ( W.IsA('SniperRifle2x') ) 		return DoReplace(W,class'LCSniperRifle',,,true); //AWM_Beta1 rifle
 		}
-		else if ( Other.IsA('MH2Rifle') )
+		else if ( W.IsA('MH2Rifle') )
 		{
-			class'LCMH2Rifle'.default.RifleDamage = int(Other.GetPropertyText("RifleDamage"));
+			class'LCMH2Rifle'.default.RifleDamage = int(W.GetPropertyText("RifleDamage"));
 			if ( class'LCMH2Rifle'.default.RifleDamage == 0 )
 				class'LCMH2Rifle'.default.RifleDamage = 50;
-			class'LCMH2Rifle'.default.OrgClass = class<TournamentWeapon>(Other.Class);
-			return DoReplace(Weapon(Other),class'LCMH2Rifle',,true);
+			class'LCMH2Rifle'.default.OrgClass = class<TournamentWeapon>(W.Class);
+			return DoReplace(W,class'LCMH2Rifle',,,true);
 		}
-		else if ( Other.IsA('NYACovertSniper') )
-			return DoReplace(Weapon(Other),class'LCNYACovertSniper',,true);
-		else if ( Other.IsA('ChamV2SniperRifle') )
-			return DoReplace(Weapon(Other),class'LCChamRifle',,true);
-		else if ( string(Other.class) ~= "h4xRiflev3.h4x_Rifle" )
-			return DoReplace(Weapon(Other),class'LC_v3_h4xRifle');
+		else if ( W.IsA('NYACovertSniper') )		return DoReplace(W,class'LCNYACovertSniper',,,true);
+		else if ( W.IsA('ChamV2SniperRifle') )		return DoReplace(W,class'LCChamRifle',,,true);
+		else if ( string(W.class) ~= "h4xRiflev3.h4x_Rifle" )	return DoReplace(W,class'LC_v3_h4xRifle');
 	}
-	else if ( ClassIsChildOf( Other.Class, class'minigun2') )
+	else if ( ClassIsChildOf( W.Class, class'minigun2') )
 	{
-		if ( Other.Class == class'minigun2' )
-			return DoReplace(Weapon(Other),class'LCMinigun2');
-		else if ( Other.IsA('Minigun_2x') )
-			return DoReplace(Weapon(Other),class'LCMinigun2',,true);
-		else if ( Other.IsA('sgMinigun') )
-			return SiegeMini(Weapon(Other));
+		if ( W.Class == class'minigun2' )			return DoReplace(W,class'LCMinigun2');
+		else if ( W.IsA('Minigun_2x') )				return DoReplace(W,class'LCMinigun2',,,true);
+		else if ( W.IsA('sgMinigun') )				return SiegeMini(W);
 	}
-	else if ( Other.default.Mesh == LodMesh'UnrealI.minipick' )	//This is an old minigun!
+	else if ( W.default.Mesh == LodMesh'UnrealI.minipick' )	//This is an old minigun!
 	{
-		if ( (Other.Class == Class'UnrealI.Minigun') || Other.IsA('OLMinigun') )
-			return DoReplace( Weapon(Other), class'LCMinigun');
-		else if ( Other.IsA('LMinigun') ) //Liandri minigun
+		if ( (W.Class == Class'UnrealI.Minigun') || W.IsA('OLMinigun') )
+			return DoReplace( W, class'LCMinigun');
+		else if ( W.IsA('LMinigun') ) //Liandri minigun
 		{
-			Class'LCLiandriMinigun'.default.OrgClass = class<TournamentWeapon>(Other.Class);
-			return DoReplace( Weapon(Other), class'LCLiandriMinigun');
+			Class'LCLiandriMinigun'.default.OrgClass = class<TournamentWeapon>(W.Class);
+			return DoReplace( W, class'LCLiandriMinigun');
 		}
 	}
-	else if ( Other.IsA('AsmdPulseRifle') ) //SiegeXtreme
+	else if ( W.IsA('AsmdPulseRifle') ) //SiegeXtreme
 	{
-		Class'LCAsmdPulseRifle'.default.OrgClass = class<TournamentWeapon>(Other.Class);
-		return DoReplace( Weapon(Other), class'LCAsmdPulseRifle');
+		Class'LCAsmdPulseRifle'.default.OrgClass = class<TournamentWeapon>(W.Class);
+		return DoReplace( W, class'LCAsmdPulseRifle');
 	}
-	else if ( Other.IsA('SiegeInstagibRifle') ) //SiegeUltimate
+	else if ( W.IsA('SiegeInstagibRifle') ) //SiegeUltimate
 	{
-		Class'LCSiegeInstagibRifle'.default.OrgClass = class<TournamentWeapon>(Other.Class);
-		return DoReplace( Weapon(Other), class'LCSiegeInstagibRifle');
+		Class'LCSiegeInstagibRifle'.default.OrgClass = class<TournamentWeapon>(W.Class);
+		return DoReplace( W, class'LCSiegeInstagibRifle');
 	}
 
 
@@ -182,34 +175,47 @@ function int SiegeMini( Weapon Other)
 {
 	local Weapon W;
 
-	W = Other.Spawn(class'LCMinigun2', Other.Owner, Other.Tag);
+	W = W.Spawn(class'LCMinigun2', W.Owner, W.Tag);
 	if ( W != none )
 	{
 		LCMinigun2(W).SlowSleep = 0.14;
 		LCMinigun2(W).FastSleep = 0.09;
-		W.SetCollisionSize( Other.CollisionRadius, Other.CollisionHeight);
-		W.Tag = Other.Tag;
-		W.Event = Other.Event;
-		if ( Other.MyMarker != none )
+		W.SetCollisionSize( W.CollisionRadius, W.CollisionHeight);
+		W.Tag = W.Tag;
+		W.Event = W.Event;
+		if ( W.MyMarker != none )
 		{
-			W.MyMarker = Other.MyMarker;
+			W.MyMarker = W.MyMarker;
 			W.MyMarker.markedItem = W;
 		}
-		W.bHeldItem = Other.bHeldItem;
-		W.RespawnTime = Other.RespawnTime;
-		W.PickupAmmoCount = Other.PickupAmmoCount;
-		W.AmmoName = Other.AmmoName;
-		W.bRotatingPickup = Other.bRotatingPickup;
+		W.bHeldItem = W.bHeldItem;
+		W.RespawnTime = W.RespawnTime;
+		W.PickupAmmoCount = W.PickupAmmoCount;
+		W.AmmoName = W.AmmoName;
+		W.bRotatingPickup = W.bRotatingPickup;
 		SetReplace( Other, W);
 		return int(bApplySNReplace) * 2;
 	}
 	return 1;
 }
 
-function int DoReplace( Weapon Other, class<Weapon> NewWeapClass, optional bool bFullAmmo, optional bool bCopyAmmo)
+function int DoReplace
+(
+	Weapon Other,
+	class<Weapon> NewWeapClass,
+	optional class<LCClassLoader> LoaderClass,
+	optional bool bFullAmmo,
+	optional bool bCopyAmmo
+)
 {
 	local Weapon W;
 
+	if ( (LoaderClass != None) && (InStr(LoadedClasses, ";" $ NewWeapClass.Name $ ";") == -1) )
+	{
+		LoadedClasses = LoadedClasses $ NewWeapClass.Name $ ";";
+		Spawn( LoaderClass).Setup( Other.Class, NewWeapClass);
+	}
+	
 	W = Other.Spawn(NewWeapClass, Other.Owner, Other.Tag);
 	if ( W != none )
 	{
@@ -249,7 +255,7 @@ function SetReplace( Weapon Other, Weapon With)
 //***************************************************
 //This function is massive, deal with each known case
 //***************************************************
-function bool FoundArena( mutator M)
+function bool FoundArena( Mutator M)
 {
 	local LCArenaMutator LCArena;
 
@@ -433,4 +439,5 @@ final function SetServerPackage( string Pkg)
 
 defaultproperties
 {
+     LoadedClasses=";"
 }

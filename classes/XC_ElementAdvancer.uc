@@ -324,7 +324,6 @@ final function bool ValidTrailer( Actor Trailer)
 //2 means none
 function int AdvanceCode( Weapon Other)
 {
-	local ENetRole OldRole;
 	if ( Other == none )
 		return 0;
 	if ( Other.Owner != none && Other.Owner.IsA('bbPlayer') ) //UTPURE PLAYER
@@ -332,17 +331,9 @@ function int AdvanceCode( Weapon Other)
 		if ( Left( string(Other.Name), 3) ~= "ST_" ) //This is a newnet weapon
 			return 2;
 	}
-	OldRole = Other.Role;
-	Other.Role = ROLE_Authority;
-	if ( Other.GetPropertyText("LCChan") != "" ) //This is a LCWeapon
-	{
-		Other.Role = OldRole;
-		if ( !Channel.bUseLC ) //LC isn't in use, advance all
-			return 0;
-		return 1; //LC in use, advance projectiles
-	}
-	Other.Role = OldRole;
-	return 0;
+	if ( !Channel.bUseLC || !class'LCStatics'.static.IsLCWeapon(Other) )
+		return 0;
+	return 1;
 }
 
 function RegisterAdvance( Actor Other)

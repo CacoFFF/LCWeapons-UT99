@@ -7,15 +7,18 @@ class LCShockRifle expands ShockRifle;
 
 
 var XC_CompensatorChannel LCChan;
+var bool bLoaderSetup;
 var bool bSimulatingEffect;
 var bool bNoAmmoDeplete;
 var bool bTeamColor;
+var bool bCombo;
+var bool bInstantFlash;
 var float ffRefireTimer; //This will enforce security checks
 
-var class<ShockBeam> GlobalBeam;
-var class<ShockBeam> HiddenBeam;
-var class<Effects> GlobalExplosion;
-var class<Effects> HiddenExplosion;
+var float FireAnimRate;
+var float AltFireAnimRate;
+var class<Effects> BeamPrototype;
+var class<Effects> ExplosionClass;
 
 replication
 {
@@ -25,10 +28,13 @@ replication
 		bTeamColor;
 }
 
+
+
 function Inventory SpawnCopy( pawn Other )
 {
 	return Class'LCStatics'.static.SpawnCopy(Other,self);
 }
+
 function GiveTo( pawn Other )
 {
 	Class'LCStatics'.static.GiveTo(Other,self);
@@ -41,7 +47,7 @@ function SetSwitchPriority(pawn Other)
 	Class'LCStatics'.static.SetSwitchPriority( Other, self, 'ShockRifle');
 }
 
-simulated event KillCredit( actor Other)
+simulated event KillCredit( Actor Other)
 {
 	if ( XC_CompensatorChannel(Other) != none )
 	{
@@ -50,7 +56,6 @@ simulated event KillCredit( actor Other)
 			ffTraceFire();
 		else if ( LCChan.bDelayedAltFire && (AltProjectileClass != none) )
 			ffSimProj(AltProjectileClass, AltProjectileClass.Default.Speed);
-
 	}
 	else if ( LCMutator(Other) != none )
 	{
@@ -99,7 +104,12 @@ simulated function bool IsLC()
 
 simulated function PlayFiring()
 {
-	Super.PlayFiring();
+	PlayOwnedSound( FireSound, SLOT_None, Pawn(Owner).SoundDampening*4.0);
+	if ( HasAnim('Fire1') )
+	{
+		LoopAnim('Fire1', FireAnimRate * (0.5 + 0.5 * FireAdjust), 0.05);
+		ffRefireTimer = 1.0 / AnimRate;
+	}
 	if ( IsLC() && (Level.NetMode == NM_Client) )
 		LCChan.ClientFire();;
 	if ( bTeamColor )
@@ -108,7 +118,8 @@ simulated function PlayFiring()
 
 simulated function PlayAltFiring()
 {
-	Super.PlayAltFiring();
+	PlayOwnedSound(AltFireSound, SLOT_None,Pawn(Owner).SoundDampening*4.0);
+	LoopAnim('Fire2', AltFireAnimRate * (0.5 + 0.5 * FireAdjust), 0.05);
 	if ( IsLC() && (Level.NetMode == NM_Client) )
 		LCChan.ClientFire(true);
 }
@@ -198,73 +209,77 @@ simulated function ffTraceFire()
 
 simulated function ProcessTraceHit(Actor Other, Vector HitLocation, Vector HitNormal, Vector X, Vector Y, Vector Z)
 {
-	local bool bSpecialEff;
-	local Effects Explosion;
-
-	bSpecialEff = IsLC() && (Level.NetMode != NM_Client); //Spawn for LC clients
-
 	if (Other==None)
 	{
 		HitNormal = -X;
 		HitLocation = Owner.Location + X*10000.0;
 	}
 
-	if ( PlayerPawn(Owner) != None )
+	if ( bInstantFlash && (PlayerPawn(Owner) != None) )
 		PlayerPawn(Owner).ClientInstantFlash( -0.4, vect(450, 190, 650));
 	SpawnEffect(HitLocation, Owner.Location + CalcDrawOffset() + (FireOffset.X + 20) * X + FireOffset.Y * Y + FireOffset.Z * Z);
 
-	if ( ShockProj(Other) != None )
+	if ( (ShockProj(Other) != None) && bCombo )
 	{ 
 		AmmoType.UseAmmo(2);
 		ShockProj(Other).SuperExplosion();
 	}
 	else
-	{
-		if ( bSpecialEff && LCChan.LCActor.bNeedsHiddenEffects )
-			Explosion = Spawn(HiddenExplosion,Owner,, HitLocation+HitNormal*8,rotator(HitNormal));
-		else
-		{
-			Explosion = Spawn(GlobalExplosion,Owner,, HitLocation+HitNormal*8,rotator(HitNormal));
-			Explosion.SetPropertyText("bNotRelevantToOwner",string(bSpecialEff));
-		}
-		EditExplosion( Explosion);
-	}
+		SpawnExplosion( HitLocation, HitNormal);
 
 	if ( (Other != self) && (Other != Owner) && (Other != None) ) 
 		Other.TakeDamage(HitDamage, Pawn(Owner), HitLocation, 60000.0*X, MyDamageType);
 }
 
-simulated function SpawnEffect(vector HitLocation, vector SmokeLocation)
+/** 
+ * Visual effects
+ *
+ * Used in subclasses for minor modifications
+*/
+
+//Override whole function if we're using a significantly different beam
+simulated function SpawnEffect( vector HitLocation, vector SmokeLocation)
 {
-	local ShockBeam Smoke,shock;
 	local Vector DVector;
 	local int NumPoints;
 	local rotator SmokeRotation;
-	local bool bIsLC;
-
+	local ShockBeam Beam;
+	
 	DVector = HitLocation - SmokeLocation;
 	NumPoints = VSize(DVector)/135.0;
 	if ( NumPoints < 1 )
 		return;
 	SmokeRotation = rotator(DVector);
-	SmokeRotation.roll = Rand(65535);
+	SmokeRotation.Roll = Rand(65535);
 	
-	bIsLC = IsLC();
-	if ( bIsLC && (Level.NetMode != NM_Client) && LCChan.LCActor.bNeedsHiddenEffects )
-		Smoke = Spawn( HiddenBeam,Owner,,SmokeLocation,SmokeRotation);
-	else
+	Beam = Spawn( class'FV_AdaptiveBeam', Owner,, SmokeLocation, SmokeRotation);
+	Beam.MoveAmount = DVector/NumPoints;
+	Beam.NumPuffs = NumPoints - 1;	
+	if ( IsLC() && (Level.NetMode != NM_Client) )
 	{
-		Smoke = Spawn( GlobalBeam,Owner,,SmokeLocation,SmokeRotation);
-		Smoke.SetPropertyText("bNotRelevantToOwner",string(bIsLC));
+		Beam.SetPropertyText("bIsLC","1");
+		Beam.SetPropertyText("bNotRelevantToOwner","1");
 	}
-	Smoke.MoveAmount = DVector/NumPoints;
-	Smoke.NumPuffs = NumPoints - 1;	
-	EditBeam( Smoke);
+	EditBeam( Beam);
 }
 
-//Used in subclasses
+simulated function SpawnExplosion( vector HitLocation, vector HitNormal)
+{
+	local Effects Explosion;
+
+	Explosion = Spawn( ExplosionClass, Owner,, HitLocation+HitNormal*8,rotator(HitNormal));
+	if ( IsLC() && (Level.NetMode != NM_Client) )
+	{
+		Explosion.SetPropertyText("bIsLC","1");
+		Explosion.SetPropertyText("bNotRelevantToOwner","1");
+	}
+	EditExplosion( Explosion);
+}
+
 simulated function EditBeam( ShockBeam Beam)
 {
+	if ( (BeamPrototype != None) && (FV_AdaptiveBeam(Beam) != None) )
+		FV_AdaptiveBeam(Beam).AdaptFrom( BeamPrototype);
 	if ( bTeamColor )
 		Beam.Texture = Class'FVTeamShock'.default.BeamTex[ Class'LCStatics'.static.FVTeam( Pawn(Owner)) ];
 }
@@ -285,8 +300,9 @@ simulated function SetStaticSkins()
 defaultproperties
 {
 	ffRefireTimer=0.734
-	GlobalBeam=class'FV_AdaptiveBeam'
-	HiddenBeam=class'FV_LCAdaptiveBeam'
-	GlobalExplosion=class'Botpack.ut_RingExplosion5'
-	HiddenExplosion=class'LCRingExplosion5'
+	FireAnimRate=0.6
+	AltFireAnimRate=0.8
+	ExplosionClass=class'FV_RingExplosion5'
+	bCombo=True
+	bInstantFlash=True
 }

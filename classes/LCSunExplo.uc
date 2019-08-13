@@ -1,6 +1,6 @@
-class LCSunExplo expands ShockExplo;
+class LCSunExplo expands FV_ShockExplo;
 
 defaultproperties
 {
-    bOwnerNoSee=True
+     Skin=Texture'Botpack.Effects.Sparky'
 }

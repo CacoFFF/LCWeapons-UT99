@@ -2,10 +2,11 @@
 //By Higor
 
 
-class LCStatics expands Object;
+class LCStatics expands Object
+	abstract;
 
-#exec OBJ LOAD FILE="LCPureUtil.u" PACKAGE=LCWeapons_0021
-#exec OBJ LOAD FILE="SiegeUtil_A.u" PACKAGE=LCWeapons_0021
+#exec OBJ LOAD FILE="LCPureUtil.u" PACKAGE=LCWeapons_0022
+#exec OBJ LOAD FILE="SiegeUtil_A.u" PACKAGE=LCWeapons_0022
 
 const MULTIPLIER = 0x015a4e35;
 const INCREMENT = 1;
@@ -14,6 +15,8 @@ var int XCGE_Version;
 var bool bXCGE;
 var bool bXCGE_LevelHook; //Indicates that level has been hooked
 var bool bXCGE_NotRelevantToOwner; //Indicates that bNotRelevantToOwner feature exists on this server
+
+var const string RoleText[5];
 
 //XC_Engine interface
 native(3560) static final function bool ReplaceFunction( class<Object> ReplaceClass, class<Object> WithClass, name ReplaceFunction, name WithFunction, optional name InState);
@@ -35,6 +38,7 @@ static final function bool DetectXCGE( Actor Other)
 	if ( default.XCGE_Version >= 20 ) //Static-safe XCGE replacer
 	{
 	}
+	Other.Level.ConsoleCommand("set XC_ClientPhysics bRelevantIfOwnerIs 1");
 	return default.bXCGE;
 }
 
@@ -42,7 +46,7 @@ static final function bool DetectXCGE( Actor Other)
 //************************************************************************
 //Use the util to get a player's rotation while keeping Pure compatibility
 //************************************************************************
-static final function rotator PlayerRot( pawn P)
+static final function rotator PlayerRot( Pawn P)
 {
 	return class'LCPureRotation'.static.PlayerRot(P);
 }
@@ -229,6 +233,24 @@ static final function rotator AlphaRotation( rotator End, rotator Start, float A
 	return Middle;
 }
 
+//*******************************
+//Sees if this weapon supports LC
+//*******************************
+static final function bool IsLCWeapon( Weapon W)
+{
+	local byte OldRole;
+	local bool bIsLC;
+	
+	if ( W != None )
+	{
+		OldRole = W.Role;
+		W.Role = ROLE_Authority;
+		bIsLC = W.GetPropertyText("LCChan") != "";
+		W.SetPropertyText( "Role", default.RoleText[OldRole] );
+	}
+	return bIsLC;
+}
+
 //*************************************************************
 //Finds out if this hit actor should be considered for ZP shots
 //*************************************************************
@@ -400,7 +422,7 @@ static final function ReplaceText(out string Text, string Replace, string With)
 // Spawns an enhanced copy of a LCWeapon
 //**************************************
 //Customized to allow respawning with custom ammo amounts
-static final function inventory SpawnCopy( pawn Other, Weapon W )
+static final function Inventory SpawnCopy( Pawn Other, Weapon W )
 {
 	local Weapon Copy;
 	if( W.Level.Game.ShouldRespawn(W) )
@@ -432,7 +454,7 @@ static final function inventory SpawnCopy( pawn Other, Weapon W )
 //*****************************************************************
 // Delete previous weapon of same class to prevent double-switching
 //*****************************************************************
-static final function GiveTo( pawn Other, weapon W)
+static final function GiveTo( Pawn Other, weapon W)
 {
 	local Weapon W2;
 	local inventory I;
@@ -485,7 +507,7 @@ static final function GiveTo( pawn Other, weapon W)
 //**********************************
 //Finds Weapon based on a superclass
 //**********************************
-static final function Weapon FindBasedWeapon( pawn Other, class<Weapon> WC)
+static final function Weapon FindBasedWeapon( Pawn Other, class<Weapon> WC)
 {
 	local Weapon First, Cur;
 	local inventory Inv;
@@ -689,7 +711,7 @@ static final function SavedMove FindMoveBeyond( PlayerPawn Other, float TimeStam
 //*********************************************************************
 // Replaces def switch priority, lets weapons use non-class based names
 //*********************************************************************
-static function SetSwitchPriority(pawn Other, weapon Weap, name CustomName)
+static final function SetSwitchPriority( Pawn Other, Weapon Weap, name CustomName)
 {
 	local int i;
 	local name temp, carried;
@@ -719,4 +741,14 @@ static function SetSwitchPriority(pawn Other, weapon Weap, name CustomName)
 			}
 		}
 	}		
+}
+
+
+defaultproperties
+{
+	RoleText(0)="ROLE_None"
+	RoleText(1)="ROLE_DumbProxy"
+	RoleText(2)="ROLE_SimulatedProxy"
+	RoleText(3)="ROLE_AutonomousProxy"
+	RoleText(4)="ROLE_Authority"
 }
