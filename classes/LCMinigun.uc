@@ -17,33 +17,9 @@ simulated event RenderOverlays( canvas Canvas )
 
 function ProcessTraceHit(Actor Other, Vector HitLocation, Vector HitNormal, Vector X, Vector Y, Vector Z)
 {
-	local int rndDam;
-
 	if ( PlayerPawn(Owner) != None )
 		PlayerPawn(Owner).ShakeView(ShakeTime, ShakeMag, ShakeVert);
-	if (Other == Level) 
-	{
-		if ( IsLC() )
-			Spawn(class'LCLightWallHitEffect',Owner,, HitLocation+HitNormal, Rotator(HitNormal));
-		else
-			Spawn(class'UT_LightWallHitEffect',,, HitLocation+HitNormal, Rotator(HitNormal));
-	}
-	else if ( (Other!=self) && (Other!=Owner) && (Other != None) ) 
-	{
-		if ( !Other.bIsPawn && !Other.IsA('Carcass') )
-			spawn(class'UT_SpriteSmokePuff',,,HitLocation+HitNormal*9); 
-		else
-			Other.PlaySound(Sound 'ChunkHit',, 4.0,,100);
-
-		if ( Other.IsA('Bot') && (FRand() < 0.2) )
-			Pawn(Other).WarnTarget(Pawn(Owner), 500, X);
-		rndDam = 9 + Rand(6);
-		if ( FRand() < 0.2 )
-			X *= 2.0;
-		else
-			X = vect(0,0,0); //Lockdown prevention
-		Other.TakeDamage(rndDam, Pawn(Owner), HitLocation, rndDam*500.0*X, MyDamageType);
-	}
+	Super.ProcessTraceHit( Other, HitLocation, HitNormal, X, Y, Z);
 }
 
 simulated function PlayFiring()

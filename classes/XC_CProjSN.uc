@@ -59,7 +59,7 @@ event Tick( float DeltaTime)
 //	i=0;
 	while ( i<iSimul )
 	{
-		if ( Simulators[i] == none || Simulators[i].bDeleteMe )
+		if ( Simulators[i] == none || Simulators[i].bDeleteMe || Simulators[i].Physics == PHYS_None )
 		{
 			Simulators[i] = Simulators[--iSimul];
 			Simulators[iSimul] = none;

@@ -8,17 +8,24 @@ replication
 		bIsLC;
 }
 
+simulated event PostNetBeginPlay()
+{
+	//Texture=None causes a crash
+	if ( (bIsLC && (Owner != None) && (Owner.Role == ROLE_AutonomousProxy)) || (Texture == None) )
+	{
+		bHidden = true;
+		SetTimer( 0, false);
+		LifeSpan = 0.001;
+		LightType = LT_None;
+	}
+}
+
 simulated function Timer()
 {
 	local ShockBeam r;
 	
 	if ( NumPuffs > 0 )
 	{
-		if ( bIsLC && (Owner != None) && (Owner.Role == ROLE_AutonomousProxy) )
-		{
-			Destroy();
-			return;
-		}
 		r = Spawn(class'FV_AdaptiveBeam',,,Location+MoveAmount);
 		r.Texture = Texture;
 		r.Skin = Skin;
@@ -33,7 +40,8 @@ simulated function Timer()
 
 simulated function AdaptFrom( class<Effects> Other)
 {
-	Texture = Other.default.Texture;
+	if ( Other.default.Texture != None )
+		Texture = Other.default.Texture;
 	Skin = Other.default.Skin;
 	Mesh = Other.default.Mesh;
 	Style = Other.default.Style;

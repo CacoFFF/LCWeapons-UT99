@@ -117,7 +117,7 @@ function ffCorrectTimes( private float ffDelta)
 }
 
 
-function bool ValidatePlayerView( float ClientTimeStamp, vector StartTrace, int CmpRot, byte Imprecise)
+function bool ValidatePlayerView( float ClientTimeStamp, vector StartTrace, int CmpRot, out byte Imprecise, out string Error)
 {
 	local rotator ClientView, ServerView;
 	local float alpha, lag, maxdelta;
@@ -131,7 +131,8 @@ function bool ValidatePlayerView( float ClientTimeStamp, vector StartTrace, int 
 	ServerView = Player.ViewRotation;
 	if ( ClientTimeStamp > Player.CurrentTimeStamp ) //Wait
 		return false;
-	//Anything past this stage is full reject
+
+	//Anything past this stage should be full reject
 	Imprecise += 20;
 	if ( ClientTimeStamp < Player.CurrentTimeStamp )
 	{
@@ -150,13 +151,13 @@ function bool ValidatePlayerView( float ClientTimeStamp, vector StartTrace, int 
 			Imprecise++;
 		else
 		{
-			CompChannel.RejectShot("ROTATION INCONSISTENCY"@ServerView@ClientView);
+			Error = "ROTATION INCONSISTENCY"@ServerView@ClientView;
 			return false;
 		}
 	}
 	else if ( !class'LCStatics'.static.CompareRotation( ServerView, ClientView) )
 	{
-		CompChannel.RejectShot("ROTATION MISMATCH"@ServerView@ClientView);
+		Error = "ROTATION MISMATCH"@ServerView@ClientView;
 		return false;
 	}
 
@@ -183,7 +184,7 @@ function bool ValidatePlayerView( float ClientTimeStamp, vector StartTrace, int 
 	alpha = VSize( PlayerPos - StartTrace);
 	if ( alpha > maxdelta*2 ) //Diff too big
 	{
-		CompChannel.RejectShot( "LOCATION DIFF = "$alpha@"vs"@(maxdelta*2) );
+		Error = "LOCATION DIFF = "$alpha@"vs"@(maxdelta*2);
 		return false;
 	}
 	if ( alpha > maxdelta )

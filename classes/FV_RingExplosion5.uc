@@ -20,7 +20,7 @@ simulated event PostNetBeginPlay()
 	//Kill if owned client
 	if ( bIsLC && (Owner != None) && (Owner.Role == ROLE_AutonomousProxy) )
 	{
-		bOwnerNoSee = true;
+		bHidden = true;
 		LifeSpan = 0.001;
 		return;
 	}

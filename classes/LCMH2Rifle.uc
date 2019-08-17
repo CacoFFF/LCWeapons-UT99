@@ -8,9 +8,7 @@ class LCMH2Rifle expands LCSniperRifle;
 
 var bool bGraphicsInitialized;
 var bool bZoom;
-var Texture Crosshair;
 var int RifleDamage;
-var class<TournamentWeapon> OrgClass;
 var class<Blood2> BloodClass;
 
 
@@ -22,47 +20,11 @@ simulated event Spawned()
 
 simulated function InitGraphics()
 {
-	local string Pkg;
-
-	if ( OrgClass == none )
-	{
-		Log("Original class still fails!");
-		return;
-	}
-	else
-		default.bGraphicsInitialized = true;
-	Pkg = string(OrgClass);	
-	Pkg = class'LCStatics'.static.ByDelimiter( Pkg, ".");
-	Crosshair = Texture( DynamicLoadObject(Pkg$".crosshair",class'Texture') );
-	Default.Crosshair = Crosshair;
-	MultiSkins[0] = Texture( DynamicLoadObject(Pkg$".Rifle.AA",class'Texture') );
-	MultiSkins[1] = Texture( DynamicLoadObject(Pkg$".Rifle.SR",class'Texture') );
-	MultiSkins[2] = Texture( DynamicLoadObject(Pkg$".Skins.RifleFloor",class'Texture') );
-	Default.MultiSkins[0] = MultiSkins[0];
-	Default.MultiSkins[1] = MultiSkins[1];
-	Default.MultiSkins[2] = MultiSkins[2];
-	BloodClass = Class<Blood2>( DynamicLoadObject(Pkg$".BloodDrop",class'class') );
+	BloodClass = Class<Blood2>( DynamicLoadObject("MonsterHunt2Gold.BloodDrop",class'class') );
 	Default.BloodClass = BloodClass;
-	if ( Level.NetMode != NM_Client )
-		Spawn(class'LCMH2RifleLoader').TCL = OrgClass;
+	bGraphicsInitialized = true;
 }
 
-simulated event RenderOverlays( canvas Canvas )
-{
-	MultiSkins[2] = none;
-	Super.RenderOverlays(Canvas);
-	MultiSkins[2] = Default.MultiSkins[2];
-}
-
-simulated function PlayFiring()
-{
-	PlayOwnedSound(FireSound, SLOT_None, Pawn(Owner).SoundDampening*3.0);
-	PlayAnim(FireAnims[Rand(5)],0.8 + 0.8 * FireAdjust, 0.05);
-	if ( (PlayerPawn(Owner) != None) && (PlayerPawn(Owner).DesiredFOV == PlayerPawn(Owner).DefaultFOV) )
-		bMuzzleFlash++;
-	if ( IsLC() && (Level.NetMode == NM_Client) )
-		LCChan.bDelayedFire = true;
-}
 
 simulated function PostRender( canvas Canvas )
 {
@@ -203,11 +165,11 @@ state Zooming
 	}
 }
 
-simulated function ProcessTraceHit(Actor Other, Vector HitLocation, Vector HitNormal, Vector X, Vector Y, Vector Z)
+simulated function ProcessTraceHit( Actor Other, Vector HitLocation, Vector HitNormal, Vector X, Vector Y, Vector Z)
 {
-   local vector v;
-   local int i;
-   local Blood2 b;
+	local int i;
+	local Blood2 b;
+	local Actor HitEffect;
 
 	if ( (Level.NetMode == NM_Client) || (BloodClass == none) )
 	{
@@ -215,88 +177,75 @@ simulated function ProcessTraceHit(Actor Other, Vector HitLocation, Vector HitNo
 		return;
 	}
 
-   if ((Other !=none) && (Other == Level))
-      Spawn(class'UT_HeavyWallHitEffect',,, HitLocation+HitNormal, Rotator(HitNormal));
-   else if ((Other != self) && (Other != Owner) && (Other != None))
-   {
-      if ( Other.bIsPawn )
-      {
-         Other.PlaySound(Sound 'ChunkHit',, 4.0,,100);
-         Other.PlaySound(Sound 'UnrealI.Razorjack.BladeThunk',, 4.0,,100);
-         PlayOwnedSound(Sound 'UnrealI.Razorjack.BladeThunk',, 4.0,,10);
-      }
-      if ( Other.bIsPawn && (HitLocation.Z - Other.Location.Z > 0.62 * Other.CollisionHeight)
-         && (instigator.IsA('PlayerPawn') || (instigator.IsA('Bot') && !Bot(Instigator).bNovice)))
-      {
-         if ( Pawn(Other).Health > 0 )
-	 {
-            Other.TakeDamage(RifleDamage, Pawn(Owner), HitLocation, 35000 * X, AltDamageType);
-	    if ( Pawn(Other).Health < 1 )
-            {
-               AmmoType.AddAmmo(3);
-               Spawn(class'UT_BigBloodHit',,, HitLocation);
-  	       for (i=0; i<(6); i++)
-	       {
-		  v = HitLocation;
-		  v.X += 10 * FRand();
-		  v.X -= 15 * FRand();
-		  v.Y += 10 * FRand();
-		  v.Y -= 15 * FRand();
-		  v.Z += 10 * FRand();
-		  v.Z -= 15 * FRand();
-		  Spawn(class'UT_BloodHit',,, v);
-               }
-	       for (i=0; i<(3); i++)
-               {
-		  v = HitLocation;
-		  v.X += 5 * FRand();
-		  v.X -= 7 * FRand();
-		  v.Y += 5 * FRand();
-		  v.Y -= 7 * FRand();
-		  v.Z += 5 * FRand();
-		  v.Z -= 7 * FRand();
-		  Spawn(class'BloodBurst',,, v);
+	if ( Other == Level )
+	{
+		HitEffect = Spawn( class'FV_HeavyWallHitEffect',,, HitLocation+HitNormal, Rotator(HitNormal));
+		class'LCStatics'.static.SetHiddenEffect( HitEffect, Owner, LCChan);
+	}
+	else if ( (Other != self) && (Other != Owner) && (Other != None) )
+	{
+		if ( Other.bIsPawn )
+		{
+			Other.PlaySound(Sound 'ChunkHit',, 4.0,,100);
+			Other.PlaySound(Sound 'UnrealI.Razorjack.BladeThunk',, 4.0,,100);
+			PlayOwnedSound(Sound 'UnrealI.Razorjack.BladeThunk',, 4.0,,10);
+		}
+		if ( Other.bIsPawn && (HitLocation.Z - Other.Location.Z > 0.62 * Other.CollisionHeight)
+			&& (instigator.IsA('PlayerPawn') || (instigator.IsA('Bot') && !Bot(Instigator).bNovice)))
+		{
+			if ( Pawn(Other).Health > 0 )
+			{
+				Other.TakeDamage(RifleDamage, Pawn(Owner), HitLocation, 35000 * X, AltDamageType);
+				if ( Pawn(Other).Health < 1 )
+				{
+					AmmoType.AddAmmo(3);
+					Spawn(class'UT_BigBloodHit',,, HitLocation);
+					for ( i=0; i<6 ; i++ )
+						Spawn(class'UT_BloodHit',,, HitLocation + VRand() * 12);
 
-		  v = HitLocation;
-		  v.X += 7 * FRand();
-		  v.X -= 10 * FRand();
-		  v.Y += 7 * FRand();
-		  v.Y -= 10 * FRand();
-		  v.Z += 7 * FRand();
-		  v.Z -= 10 * FRand();
-		  Spawn(class'BloodBurst',,, v);
-               }
- 	       for (i=0; i<(80); i++)
-               {
-		  b = Spawn( BloodClass,,, HitLocation);
-		  b.Velocity = vector( RotRand() ) * ( FRand() * 200 );
-		  b.DrawScale *= 2 * Frand();
-	       }
-	       for (i=0; i<80; i++)
-               {
-		  b = Spawn( BloodClass,,, HitLocation);
-		  b.Velocity.Z = i * 5;
-		  b.Velocity.X += (i / 7) * FRand();
-		  b.Velocity.X -= (i * 1.5 / 7) * FRand();
-		  b.Velocity.Y += (i / 7) * FRand();
-		  b.Velocity.Y -= (i * 1.5 / 7) * FRand();
-		  b.DrawScale += i * 0.00375 * FRand();
-		  b.SetPropertyText("bDecal","0");
-	       }
-            }
-         }
-         else Other.TakeDamage(RifleDamage, Pawn(Owner), HitLocation, 35000 * X, AltDamageType);
-     }
-     else Other.TakeDamage(RifleDamage,  Pawn(Owner), HitLocation, 30000.0*X, MyDamageType);
+					for (i=0 ; i<3 ; i++ )
+					{
+						Spawn(class'BloodBurst',,, HitLocation + VRand() * 6);
+						Spawn(class'BloodBurst',,, HitLocation + VRand() * 8);
+					}
+					if ( BloodClass == None )
+						return;
+					for ( i=0 ; i<80 ; i++ )
+					{
+						b = Spawn( BloodClass,,, HitLocation);
+						b.Velocity = vector( RotRand() ) * ( FRand() * 200 );
+						b.DrawScale *= 2 * Frand();
+					}
+					for ( i=0 ; i<80 ; i++ )
+					{
+						b = Spawn( BloodClass,,, HitLocation);
+						b.Velocity.Z = i * 5;
+						b.Velocity.X += (i / 7) * FRand();
+						b.Velocity.X -= (i * 1.5 / 7) * FRand();
+						b.Velocity.Y += (i / 7) * FRand();
+						b.Velocity.Y -= (i * 1.5 / 7) * FRand();
+						b.DrawScale += i * 0.00375 * FRand();
+						b.SetPropertyText("bDecal","0");
+					}
+				}
+			}
+			else Other.TakeDamage(RifleDamage, Pawn(Owner), HitLocation, 35000 * X, AltDamageType);
+		}
+		else
+			Other.TakeDamage(RifleDamage,  Pawn(Owner), HitLocation, 30000.0*X, MyDamageType);
 
-     if ( !Other.bIsPawn && !Other.IsA('Carcass') )
-    	spawn(class'UT_SpriteSmokePuff',,,HitLocation+HitNormal*9);
-   }
+		if ( !Other.bIsPawn && !Other.IsA('Carcass') )
+		{
+			HitEffect = Spawn( class'FV_SpriteSmokePuff',,, HitLocation+HitNormal*9);
+			class'LCStatics'.static.SetHiddenEffect( HitEffect, Owner, LCChan);
+		}
+	}
 }
 
 defaultproperties
 {
     WeaponDescription="MH2 Rifle"
+	FireAnimRate=1.6
     FiringSpeed=1.8
     ffRefireTimer=0.407
 }

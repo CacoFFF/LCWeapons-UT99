@@ -58,6 +58,7 @@ struct ShotData
 	var bool bPlayerValidated;
 	var bool bAccuracyValidated;
 	var float MaxTimeStamp;
+	var string Error;
 };
 var private ShotData SavedShots[8];
 var private int ffISaved;
@@ -116,7 +117,7 @@ function ffSendHit( Actor ffOther, Weapon Weap, int ffID, float ffTime, vector f
 	SavedShots[ffISaved].bPlayerValidated = false;
 	SavedShots[ffISaved].bAccuracyValidated = false;
 	SavedShots[ffISaved].Imprecise = byte(LCComp.ImpreciseTimer > 0);
-	SavedShots[ffISaved].MaxTimeStamp = Level.TimeSeconds + Level.TimeDilation * 0.5;
+	SavedShots[ffISaved].MaxTimeStamp = Level.TimeSeconds + Level.TimeDilation * 0.25;
 	ffISaved++;
 	
 	if ( !bAlreadyProcessed )
@@ -129,15 +130,19 @@ function ffSendHit( Actor ffOther, Weapon Weap, int ffID, float ffTime, vector f
 function ProcessHitList()
 {
 	local int i;
+	local ShotData EmptyData;
 	
 	if ( PlayerPawn(Owner) == None )
 		return;
 	
+	if ( Pawn(Owner).Weapon != None )
+		Pawn(Owner).Weapon.KillCredit(self);
+
 	while ( i < ffISaved )
 	{
 		if ( Level.TimeSeconds > SavedShots[i].MaxTimeStamp )
 		{
-			RejectShot("Shot timed out");
+			RejectShot("Shot rejected: "@SavedShots[i].Error);
 			Goto REMOVE_FROM_LIST;
 		}
 
@@ -152,8 +157,7 @@ function ProcessHitList()
 	REMOVE_FROM_LIST:
 		if ( i != --ffISaved )
 			SavedShots[i] = SavedShots[ffISaved];
-		SavedShots[ffISaved].Weap = None;
-		SavedShots[ffISaved].ffOther = None;
+		SavedShots[ffISaved] = EmptyData;
 	}
 	bAlreadyProcessed = false;
 }
@@ -166,12 +170,13 @@ function bool ProcessHit( out ShotData Data)
 	local float Range, CalcPing;
 	local int Seed;
 
+	Data.Error = "";
 	if ( Data.Weap == none || Data.Weap.bDeleteMe || Pawn(Owner).Weapon != Data.Weap ) //Fixes a weapon toss exploit that allows teamkilling
 		return false;
 	
 	if ( Data.ffAccuracy != float(Data.Weap.GetPropertyText("ffAimError")) ) //Weapon aim error mismatch
 	{
-		RejectShot("Aim error mismatch:"@Data.ffAccuracy@"vs"@Data.Weap.GetPropertyText("ffAimError"));
+		Data.Error = "Aim error mismatch:"@Data.ffAccuracy@"vs"@Data.Weap.GetPropertyText("ffAimError");
 		return false;
 	}
 	if ( Data.ffAccuracy != 0 )
@@ -180,14 +185,14 @@ function bool ProcessHit( out ShotData Data)
 	//Validate the player's view and shoot position, must be done only once
 	if ( !Data.bPlayerValidated )
 	{
-		if ( !LCComp.ValidatePlayerView( Data.ffTime, Data.ffStartTrace, Data.CmpRot, Data.Imprecise) )
+		if ( !LCComp.ValidatePlayerView( Data.ffTime, Data.ffStartTrace, Data.CmpRot, Data.Imprecise, Data.Error) )
 			return false;
 		Data.bPlayerValidated = true;
 	}
 	//Validate the shoot dir and weapon optional aim accuracy
 	if ( !Data.bAccuracyValidated )
 	{
-		if ( !LCActor.ValidateAccuracy( self, Data.CmpRot, Data.ffStartTrace, Data.ffHit, Data.ffAccuracy, Data.ShootFlags, Data.Imprecise) )
+		if ( !LCActor.ValidateAccuracy( self, Data.CmpRot, Data.ffStartTrace, Data.ffHit, Data.ffAccuracy, Data.ShootFlags, Data.Imprecise, Data.Error) )
 			return false;
 		Data.bAccuracyValidated = true;
 	}
@@ -208,7 +213,7 @@ function bool ProcessHit( out ShotData Data)
 
 	if ( Data.Imprecise >= 2 )
 	{
-		RejectShot("TOO MANY ERRORS ACCUMULATED");
+		Data.Error = "IMPRECISE="$Data.Imprecise;
 		return false;
 	}
 	

@@ -157,7 +157,7 @@ function ServerTraceFire( float Accuracy)
 simulated function SimTraceFire()
 {
 	local vector HitLocation, HitNormal, StartTrace, EndTrace, X,Y,Z;
-	local actor Other, aActor;
+	local Actor Other;
 	local Pawn PawnOwner;
 
 	PawnOwner = Pawn(Owner);
@@ -166,21 +166,9 @@ simulated function SimTraceFire()
 	GetAxes( class'LCStatics'.static.PlayerRot( PawnOwner), X,Y,Z);
 	LastShot = Level.TimeSeconds;
 	StartTrace = Owner.Location + CalcDrawOffset() + FireOffset.X * X + FireOffset.Y * Y + FireOffset.Z * Z; 
-	EndTrace = StartTrace + (10000 * X); 
-	ForEach PawnOwner.TraceActors( class'Actor', aActor, HitLocation, HitNormal, EndTrace, StartTrace)
-	{
-		if ( Class'LCStatics'.static.TraceStopper( aActor) )
-		{	Other = aActor;
-			break;
-		}
-		if ( !aActor.bProjTarget && !aActor.bBlockActors )
-			continue;
-		if ( aActor.IsA('Pawn') && !Pawn(aActor).AdjustHitLocation(HitLocation, EndTrace - StartTrace) )
-			continue;
-		Other = aActor;
-		break;
-	}
-	SimProcessTraceHit(Other, HitLocation, HitNormal, X,Y,Z);
+	EndTrace = StartTrace + (10000 * X);
+	Other = class'LCStatics'.static.ffTraceShot( HitLocation, HitNormal, EndTrace, StartTrace, PawnOwner);
+	SimProcessTraceHit( Other, HitLocation, HitNormal, X,Y,Z);
 }
 
 simulated function SimProcessTraceHit(Actor Other, Vector HitLocation, Vector HitNormal, Vector X, Vector Y, Vector Z)

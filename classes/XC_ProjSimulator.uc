@@ -26,8 +26,8 @@ event Tick( float DeltaTime)
 
 function AssessProjectile( Projectile P, out XC_ProjSimulator PJ)
 {
-	if ( !ClassIsChildOf( P.Class, ExpectedProj) )
-		return;
+	if ( (ExpectedProj != None) && !ClassIsChildOf( P.Class, ExpectedProj) )
+		return; //Assess any projectile if none expected
 	CurScore = (2+VSize(SpawnedAt-P.Location)) * (2+VSize(InitialVelocity-P.Velocity)) * ssCounter * ssCounter;
 //	Log( "LD="$VSize(SpawnedAt-P.Location)$", VD="$VSize(InitialVelocity-P.Velocity)$", T="$ssCounter$", Score="$CurScore );
 	if ( CurScore < 5 && (PJ == none || (CurScore < PJ.CurScore)) )

@@ -2,11 +2,12 @@ class LCClassLoader expands ReplicationInfo;
 
 var class<Weapon> BaseWeaponClass;
 var class<Weapon> LCWeaponClass;
+var string BaseWeaponClassString;
 
 replication
 {
 	reliable if ( Role==ROLE_Authority )
-		BaseWeaponClass, LCWeaponClass;
+		BaseWeaponClass, LCWeaponClass, BaseWeaponClassString;
 }
 
 
@@ -15,6 +16,7 @@ function Setup( class<Weapon> InBase, class<Weapon> InLC)
 {
 	BaseWeaponClass = InBase;
 	LCWeaponClass = InLC;
+	BaseWeaponClassString = string(InBase);
 	InitClassDefaults();
 }
 
@@ -22,6 +24,9 @@ function Setup( class<Weapon> InBase, class<Weapon> InLC)
 simulated event PostNetBeginPlay()
 {
 	local Actor W;
+	
+	if ( BaseWeaponClass == None )
+		BaseWeaponClass = class<Weapon>( DynamicLoadObject(BaseWeaponClassString,class'Class',true));
 
 	if ( (BaseWeaponClass != None) && (LCWeaponClass != None) )
 	{
@@ -98,6 +103,10 @@ simulated function InitClassDefaults()
 		TLC.default.InstFog = TBase.default.InstFog;
 		TLC.default.InstFlash = TBase.default.InstFlash;
 	}
+	
+	//XC_Engine: make ammo relevant
+	if ( (Role == ROLE_Authority) && (class'LCStatics'.default.XCGE_Version > 0) && (LCWeaponClass.default.AmmoName != None) )
+		ConsoleCommand("set"@LCWeaponClass.default.AmmoName@"bSuperClassRelevancy 1");
 }
 
 //Initialize values for existing weapons

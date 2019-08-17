@@ -1,138 +1,28 @@
 //********************************
 // NYACovertSniper, adapted to LC
 //********************************
-
 class LCChamRifle expands LCSniperRifle;
 
-var bool bFastFire;
-var bool bGraphicsInitialized;
 var bool bZoom;
-var Texture Crosshair;
 
-simulated event Spawned()
+simulated function ModifyFireRate()
 {
-	if ( !bGraphicsInitialized )
-		InitGraphics();
-}
-
-simulated function InitGraphics()
-{
-	local class<TournamentWeapon> OrgClass;
-	local int i;
-
-	default.bGraphicsInitialized = true;
-	OrgClass = class<TournamentWeapon>( DynamicLoadObject("ChamRifle_v2.ChamV2SniperRifle",class'class') );
-	default.FireSound = OrgClass.default.FireSound;
-	FireSound = default.FireSound;
-	default.SelectSound = OrgClass.default.SelectSound;
-	SelectSound = default.SelectSound;
-	default.Misc1Sound = OrgClass.default.Misc1Sound;
-	Misc1Sound = default.Misc1Sound;
-	default.Misc2Sound = OrgClass.default.Misc2Sound;
-	Misc2Sound = default.Misc2Sound;
-	default.Misc3Sound = OrgClass.default.Misc3Sound;
-	Misc3Sound = default.Misc3Sound;
-	default.AmmoName = OrgClass.default.AmmoName;
-	AmmoName = default.AmmoName;
-	default.Crosshair = OrgClass.default.MultiSkins[7];
-	Crosshair = default.Crosshair;
-	For ( i=0 ; i<5 ; i++ )
-	{
-		default.MultiSkins[i] = OrgClass.default.MultiSkins[i];
-		MultiSkins[i] = default.MultiSkins[i];
-	}
-	default.MultiSkins[5] = default.MultiSkins[2];
-	MultiSkins[5] = default.MultiSkins[5];
-}
-
-simulated event RenderOverlays( canvas Canvas )
-{
-	MultiSkins[2] = MultiSkins[4];
-	Super.RenderOverlays(Canvas);
-	MultiSkins[2] = MultiSkins[5];
-}
-
-simulated function CheckMove()
-{
+	local bool bFastFire;
+	
 	bFastFire = (Owner.Physics != PHYS_Falling && Owner.Physics != PHYS_Swimming && Pawn(Owner).BaseEyeHeight <= 0) || Owner.Velocity == vect(0,0,0);
 	if ( bFastFire )
-		ffRefireTimer = default.ffRefireTimer / 5.9;
-	else
-		ffRefireTimer = default.ffRefireTimer * 1.66;
-}
-
-simulated function PlayFiring()
-{
-	if ( Level.NetMode == NM_Client )
 	{
-		CheckMove();
-		if ( IsInState('ClientFiring') )
+		FireAnimRate = 5;
+		ffAimError = 0;
+	}
+	else
+	{
+		FireAnimRate = default.FireAnimRate;
+		if ( FiringAnimation() )
 			ffAimError = default.ffAimError;
 		else
 			ffAimError = 0;
 	}
-
-	PlayOwnedSound(FireSound, SLOT_None, Pawn(Owner).SoundDampening*3.0);
-
-	if ( bFastFire )	PlayAnim(FireAnims[4], 3 + 3 * FireAdjust, 0.05);
-	else			PlayAnim(FireAnims[Rand(5)], 0.3 + 0.3 * FireAdjust, 0.05);
-
-	if ( (PlayerPawn(Owner) != None) && (PlayerPawn(Owner).DesiredFOV == PlayerPawn(Owner).DefaultFOV) )
-		bMuzzleFlash++;
-	if ( IsLC() && (Level.NetMode == NM_Client) )
-		LCChan.bDelayedFire = true;
-}
-
-function TraceFire( float Accuracy )
-{
-	if ( bFastFire )
-		Super.TraceFire(0);
-	else
-		Super.TraceFire( ffAimError);
-}
-
-simulated event KillCredit( actor Other)
-{
-	if ( XC_CompensatorChannel(Other) != none )
-	{
-		LCChan = XC_CompensatorChannel(Other);
-		if ( LCChan.bDelayedFire )
-		{
-			if ( bFastFire )
-				ffTraceFire();
-			else
-				ffTraceFire(ffAimError);
-		}
-	}
-}
-
-event Tick( float DeltaTime)
-{
-	if ( Owner != none && Pawn(Owner).Weapon == self )
-		CheckMove();
-}
-
-state NormalFire
-{
-Begin:
-	FlashCount++;
-	Sleep(0.2); //This time is the window to reset aim error
-	ffAimError = default.ffAimError; //Should be 50
-}
-
-state Idle
-{
-	event BeginState()
-	{
-		ffAimError = 0;
-	}
-Begin:
-	bPointing=False;
-	if ( AmmoType.AmmoAmount<=0 )
-		Pawn(Owner).SwitchToBestWeapon();  //Goto Weapon that has Ammo
-	if ( Pawn(Owner).bFire!=0 ) Fire(0.0);
-	Disable('AnimEnd');
-	PlayIdleAnim();
 }
 
 simulated function PostRender( canvas Canvas )
@@ -273,14 +163,15 @@ state Zooming
 
 simulated function ProcessTraceHit(Actor Other, Vector HitLocation, Vector HitNormal, Vector X, Vector Y, Vector Z)
 {
+	local Actor HitEffect;
 	local bool bSpecialEff;
 
 	bSpecialEff = IsLC() && (Level.NetMode != NM_Client); //Spawn for LC clients
 
 	if (Other == Level) 
 	{
-		if ( bSpecialEff )		Spawn(class'zp_HeavyWallHitEffect',Owner,, HitLocation+HitNormal, Rotator(HitNormal));
-		else		Spawn(class'UT_HeavyWallHitEffect',,, HitLocation+HitNormal, Rotator(HitNormal));
+		HitEffect = Spawn( class'FV_HeavyWallHitEffect',,, HitLocation+HitNormal, Rotator(HitNormal));
+		class'LCStatics'.static.SetHiddenEffect( HitEffect, Owner, LCChan);
 	}
 	else if ( (Other != self) && (Other != Owner) && (Other != None) )
 	{
@@ -316,8 +207,8 @@ simulated function ProcessTraceHit(Actor Other, Vector HitLocation, Vector HitNo
 		}
 		if ( !Other.bIsPawn && !Other.IsA('Carcass') )
 		{
-			if ( bSpecialEff )			spawn(class'zp_SpriteSmokePuff',Owner,,HitLocation+HitNormal*9);	
-			else			spawn(class'UT_SpriteSmokePuff',,,HitLocation+HitNormal*9);	
+			HitEffect = Spawn( class'FV_SpriteSmokePuff',,, HitLocation+HitNormal*9);
+			class'LCStatics'.static.SetHiddenEffect( HitEffect, Owner, LCChan);
 		}
 	}
 }
@@ -326,6 +217,7 @@ simulated function ProcessTraceHit(Actor Other, Vector HitLocation, Vector HitNo
 defaultproperties
 {
     ffAimError=16
+	FireAnimRate=0.6
     DeathMessage="%k FuckedUp %o with the sexy Rifle."
     ItemName=ChamRifle
     PickupMessage="You picked up the Rifle!"

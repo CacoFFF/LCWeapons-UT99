@@ -120,6 +120,7 @@ function int LCReplacement( Actor Other)
 		if ( W.Class == class'ShockRifle' )			return DoReplace(W,class'LCShockRifle');
 		if ( W.Class == class'SuperShockRifle' )	return DoReplace(W,class'LCSuperShockRifle');
 		if ( W.IsA('AdvancedShockRifle') )			return DoReplace(W,class'LCAdvancedShockRifle',class'LCShockRifleLoader');
+		if ( W.IsA('BP_ShockRifle') )				return DoReplace(W,class'LCBP_ShockRifle',class'LCShockRifleLoader');
 	}
 	else if ( W.default.Mesh == LodMesh'Botpack.RiflePick' )	//This is a sniper rifle!
 	{
@@ -127,18 +128,19 @@ function int LCReplacement( Actor Other)
 		{
 			if ( W.Class == class'SniperRifle' )	return DoReplace(W,class'LCSniperRifle');
 			else if ( W.IsA('SniperRifle2x') ) 		return DoReplace(W,class'LCSniperRifle',,,true); //AWM_Beta1 rifle
+			else if ( W.IsA('BP_SniperRifle') )		return DoReplace(W,class'LCBP_SniperRifle',class'LCSniperRifleLoader');
 		}
 		else if ( W.IsA('MH2Rifle') )
 		{
 			class'LCMH2Rifle'.default.RifleDamage = int(W.GetPropertyText("RifleDamage"));
 			if ( class'LCMH2Rifle'.default.RifleDamage == 0 )
 				class'LCMH2Rifle'.default.RifleDamage = 50;
-			class'LCMH2Rifle'.default.OrgClass = class<TournamentWeapon>(W.Class);
-			return DoReplace(W,class'LCMH2Rifle',,,true);
+			return DoReplace(W,class'LCMH2Rifle',class'LCSniperRifleLoader');
 		}
-		else if ( W.IsA('NYACovertSniper') )		return DoReplace(W,class'LCNYACovertSniper',,,true);
-		else if ( W.IsA('ChamV2SniperRifle') )		return DoReplace(W,class'LCChamRifle',,,true);
-		else if ( string(W.class) ~= "h4xRiflev3.h4x_Rifle" )	return DoReplace(W,class'LC_v3_h4xRifle');
+		else if ( W.IsA('NYACovertSniper') )		return DoReplace(W,class'LCNYACovertSniper',class'LCSniperRifleLoader');
+		else if ( W.IsA('ChamV2SniperRifle') )		return DoReplace(W,class'LCChamRifle',class'LCSniperRifleLoader');
+		else if ( string(W.class) ~= "h4xRiflev3.h4x_Rifle" )	return DoReplace(W,class'LC_v3_h4xRifle',class'LCSniperRifleLoader');
+		else if ( W.IsA('AlienAssaultRifle') )					return DoReplace(W,class'LC_AARV17',class'LCSniperRifleLoader');
 	}
 	else if ( ClassIsChildOf( W.Class, class'minigun2') )
 	{
@@ -210,11 +212,8 @@ function int DoReplace
 {
 	local Weapon W;
 
-	if ( (LoaderClass != None) && (InStr(LoadedClasses, ";" $ NewWeapClass.Name $ ";") == -1) )
-	{
-		LoadedClasses = LoadedClasses $ NewWeapClass.Name $ ";";
-		Spawn( LoaderClass).Setup( Other.Class, NewWeapClass);
-	}
+	if ( LoaderClass != None )
+		SetupLoader( Other.Class, NewWeapClass, LoaderClass);
 	
 	W = Other.Spawn(NewWeapClass, Other.Owner, Other.Tag);
 	if ( W != none )
@@ -251,6 +250,14 @@ function SetReplace( Weapon Other, Weapon With)
 		ReplaceSN.ActorClass = class'LCDummyWeapon';
 }
 
+function SetupLoader( class<Weapon> OrgW, class<Weapon> NewW, class<LCClassLoader> LoaderClass)
+{
+	if ( (LoaderClass != None) && (InStr(LoadedClasses, ";" $ NewW.Name $ ";") == -1) )
+	{
+		LoadedClasses = LoadedClasses $ NewW.Name $ ";";
+		Spawn( LoaderClass).Setup( OrgW, NewW);
+	}
+}
 
 //***************************************************
 //This function is massive, deal with each known case
@@ -316,6 +323,7 @@ function bool FoundArena( Mutator M)
 		LCArena.SetupPickups( false, false, false, true);
 		LCArena.AddPropertyWeapon( "bCanThrow", "0");
 		SetServerPackage( "NYACovertSniper");
+		SetupLoader( LCArena.OldWeapClass, LCArena.MainWeapClass, class'LCSniperRifleLoader');
 		return true;
 	}
 	else if ( string(M.Class) ~= "ChamRifle_v2.Rifle_HeadshotMut" )
@@ -329,6 +337,7 @@ function bool FoundArena( Mutator M)
 		LCArena.SetupPickups( false, false, false, true);
 		LCArena.AddPropertyWeapon( "bCanThrow", "0");
 		SetServerPackage( "ChamRifle_v2");
+		SetupLoader( LCArena.OldWeapClass, LCArena.MainWeapClass, class'LCSniperRifleLoader');
 		return true;
 	}
 	else if ( string(M.Class) ~= "h4xRiflev3.h4x_HeadshotMut" )
@@ -343,6 +352,7 @@ function bool FoundArena( Mutator M)
 		LCArena.SetupCustomXLoc( class<Translocator>(DynamicLoadObject("h4xRiflev3.h4x_Xloc",class'class')), true);
 		LCArena.AddPropertyWeapon( "bCanThrow", "0");
 		SetServerPackage( "h4xRiflev3");
+		SetupLoader( LCArena.OldWeapClass, LCArena.MainWeapClass, class'LCSniperRifleLoader');
 		return true;
 	}
 	else if ( string(M.Class) ~= "AARV17.AlienRifleMutator" )
@@ -356,6 +366,7 @@ function bool FoundArena( Mutator M)
 //		LCArena.SetupPickups( false, false, false, false);
 		LCArena.AddPropertyWeapon( "bCanThrow", "0");
 		SetServerPackage( "AARV17");
+		SetupLoader( LCArena.OldWeapClass, LCArena.MainWeapClass, class'LCSniperRifleLoader');
 		return true;
 	}
 

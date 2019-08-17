@@ -68,32 +68,53 @@ static function ffSwap( out private int U, out private int H)
 //*************************
 //Client friendly TraceShot
 //*************************
-static final function Actor ffTraceShot(out vector ffHitLocation, out vector ffHitNormal, vector ffEndTrace, vector ffStartTrace, private Pawn ffTmp)
+static final function Actor ffTraceShot( out vector HitLocation, out vector HitNormal, vector EndTrace, vector StartTrace, Pawn P)
 {
-	local private vector ffRealHit;
-	local private actor ffOther;
-	local float OldEyeHeight;
+	local Actor A;
+	local float OldEyeHeight, OldBaseEyeHeight;
 	local bool bHit;
-
-	ffOther = ffTmp.Trace(ffHitLocation,ffHitNormal,ffEndTrace,ffStartTrace,True);
-	if ( Pawn(ffOther) != None )
+	local byte OldRole;
+	
+	if ( P == None )
+		return None;
+		
+	ForEach P.TraceActors( class'Actor', A, HitLocation, HitNormal, EndTrace, StartTrace)
 	{
-		ffRealHit = ffHitLocation;
-		OldEyeHeight = Pawn(ffOther).BaseEyeHeight;
-		if ( (ffOther.Mesh != none) && ffOther.HasAnim(ffOther.AnimSequence) && (ffOther.GetAnimGroup(ffOther.AnimSequence) == 'Ducking') && (ffOther.AnimFrame > -0.03) )
+		if ( TraceStopper( A) )
+			return A;
+		else if ( Pawn(A) != None )
 		{
-			Pawn(ffOther).BaseEyeHeight = 0;
-			Pawn(ffOther).EyeHeight = 0;
+			OldEyeHeight = Pawn(A).EyeHeight;
+			OldBaseEyeHeight = Pawn(A).BaseEyeHeight;
+			if ( (A.Mesh != None) && A.HasAnim( A.AnimSequence) )
+			{
+				if ( (A.GetAnimGroup( A.AnimSequence) == 'Ducking') && (A.AnimFrame > -0.03) )
+				{
+					Pawn(A).BaseEyeHeight = Pawn(A).default.BaseEyeHeight * 0.1;
+					Pawn(A).EyeHeight = Pawn(A).BaseEyeHeight;
+				}
+				else if ( InStr( string(A.AnimSequence),"Dead") != -1 || InStr( string(A.AnimSequence),"DeathEnd") != -1 )
+				{
+					Pawn(A).BaseEyeHeight = 0;
+					Pawn(A).EyeHeight = 0;
+				}
+			}
+			OldRole = A.Role;
+			A.Role = ROLE_Authority; //SOME PAWNS DON'T DEFINE THE FUNC AS SIMULATED!
+			bHit = Pawn(A).AdjustHitLocation( HitLocation, EndTrace - StartTrace); 
+			A.SetPropertyText( "Role", default.RoleText[OldRole]);
+			
+			Pawn(A).BaseEyeHeight = OldBaseEyeHeight;
+			Pawn(A).EyeHeight = OldEyeHeight;
+			if ( bHit && (A != P) ) //Safeguard
+				return A;
 		}
-		bHit = Pawn(ffOther).AdjustHitLocation(ffHitLocation, ffEndTrace - ffStartTrace);
-		Pawn(ffOther).BaseEyeHeight = OldEyeHeight;
-		Pawn(ffOther).EyeHeight = OldEyeHeight;
-		if ( !bHit )
-			ffOther = ffTraceShot(ffHitLocation,ffHitNormal,ffEndTrace,ffRealHit,Pawn(ffOther));
+		else if ( A.bProjTarget || (A.bBlockActors && A.bBlockPlayers) )
+			return A;
 	}
-	if ( ffOther == none )
-		ffHitLocation = ffEndTrace;
-	return ffOther;
+	HitLocation = EndTrace;
+	HitNormal = Normal( StartTrace - EndTrace);
+	return None;
 }
 
 //************************************
@@ -233,6 +254,19 @@ static final function rotator AlphaRotation( rotator End, rotator Start, float A
 	return Middle;
 }
 
+//**********************************************************************
+//Effects that support LC hiding/XCGE no owner replication become hidden
+//**********************************************************************
+static final function SetHiddenEffect( Actor Effect, Actor Owner, XC_CompensatorChannel Channel)
+{
+	if ( (Channel != None) && (Channel.Level.NetMode != NM_Client) && Channel.bUseLC && (Effect != None) && (Channel.Owner == Owner) && (PlayerPawn(Owner) != None) )
+	{
+		Effect.SetOwner( Owner);
+		Effect.SetPropertyText("bIsLC","1");
+		Effect.SetPropertyText("bNotRelevantToOwner","1");
+	}
+}
+
 //*******************************
 //Sees if this weapon supports LC
 //*******************************
@@ -309,7 +343,7 @@ static final function bool CompensatedType( actor Other)
 //****************************************************
 //If this is a lag compensator, return the real victim
 //****************************************************
-static final function actor CompensatedHitActor( Actor Other, out vector HitLocation)
+static final function Actor CompensatedHitActor( Actor Other, out vector HitLocation)
 {
 	if ( Other == none || Other.bIsPawn || Other == Other.Level ) //Super fast checks
 		return Other; //Should deprecate
@@ -418,6 +452,21 @@ static final function ReplaceText(out string Text, string Replace, string With)
 	Text = Text $ Input;
 }
 
+
+//*****************************************************************************
+//Obtains time it gets to complete an animation (in case of loop ignores tween)
+//*****************************************************************************
+static final function float AnimationTime( Actor Other)
+{
+	if ( Other.AnimRate <= 0 || Other.AnimLast <= 0 )
+		return 0;
+	else if ( Other.bAnimLoop )
+		return 1 / Other.AnimRate;
+	else
+		return (1.0 - Other.AnimLast) / Other.TweenRate + Other.AnimLast / Other.AnimRate;
+}
+
+
 //**************************************
 // Spawns an enhanced copy of a LCWeapon
 //**************************************
@@ -454,11 +503,12 @@ static final function Inventory SpawnCopy( Pawn Other, Weapon W )
 //*****************************************************************
 // Delete previous weapon of same class to prevent double-switching
 //*****************************************************************
-static final function GiveTo( Pawn Other, weapon W)
+static final function GiveTo( Pawn Other, Weapon W)
 {
 	local Weapon W2;
 	local inventory I;
 	
+	W.SetPropertyText("LCChan","");
 	W.Instigator = Other;
 	W.BecomeItem();
 	W2 = Weapon(Other.FindInventoryType( W.class ));
@@ -512,10 +562,11 @@ static final function Weapon FindBasedWeapon( Pawn Other, class<Weapon> WC)
 	local Weapon First, Cur;
 	local inventory Inv;
 	local bool bNext;
+	local int i;
 	
 	For ( Inv=Other.Inventory ; Inv!=none ; Inv=Inv.Inventory )
 	{
-		if ( Weapon(Inv) == none )
+		if ( (i++ > 200) || (Weapon(Inv) == none) )
 			continue;
 		if ( ClassIsChildOf( Inv.Class, WC) )
 		{

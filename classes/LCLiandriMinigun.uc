@@ -84,29 +84,16 @@ function ProcessTraceHit(Actor Other, Vector HitLocation, Vector HitNormal, Vect
 simulated function SimTraceFire( float Accuracy )
 {
 	local vector HitLocation, HitNormal, StartTrace, EndTrace, X,Y,Z;
-	local actor Other, aActor;
+	local actor Other;
 
-	if ( Owner == none )
+	if ( Owner == None )
 		return;
 	GetAxes( class'LCStatics'.static.PlayerRot( Pawn(Owner)), X,Y,Z);
 
 	StartTrace = Owner.Location + CalcDrawOffset() + FireOffset.Y * Y + FireOffset.Z * Z;  //CALCDRAWOFFSET MIGHT SCREW UP THINGS
 	EndTrace = StartTrace + Accuracy * (FRand() - 0.5 )* Y * 1000 + Accuracy * (FRand() - 0.5 ) * Z * 1000;
 	EndTrace += (10000 * X); 
-	ForEach Owner.TraceActors( class'Actor', aActor, HitLocation, HitNormal, EndTrace, StartTrace)
-	{
-		if ( Class'LCStatics'.static.TraceStopper( aActor) )
-		{	Other = aActor;
-			break;
-		}
-		if ( (!aActor.bProjTarget && !aActor.bBlockActors) || (aActor == Owner) )
-			continue;
-		if ( aActor.IsA('Pawn') && !Pawn(aActor).AdjustHitLocation(HitLocation, EndTrace - StartTrace) )
-			continue;
-		Other = aActor;
-		break;
-	}
-
+	Other = class'LCStatics'.static.ffTraceShot( HitLocation, HitNormal, EndTrace, StartTrace, Pawn(Owner));
 	if (Other == Level) 
 		Spawn(class'LC_spexp',,, HitLocation+HitNormal*9, Rotator(HitNormal));
 }

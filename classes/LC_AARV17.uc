@@ -22,66 +22,33 @@ simulated function InitGraphics()
 	default.bGraphicsInitialized = true;
 	OrgClass = class<TournamentWeapon>( DynamicLoadObject("AARV17.AlienAssaultRifle",class'class') );
 
-	default.FireSound = OrgClass.default.FireSound;
-	FireSound = default.FireSound;
-	default.Misc1Sound = OrgClass.default.Misc1Sound;
-	Misc1Sound = default.Misc1Sound;
-	default.Misc2Sound = OrgClass.default.Misc2Sound;
-	Misc2Sound = default.Misc2Sound;
-
-	default.AmmoName = OrgClass.default.AmmoName;
-	AmmoName = default.AmmoName;
-
 	default.Scope = Texture( DynamicLoadObject("AARV17.Scope",class'Texture') );
 	default.Lines = Texture( DynamicLoadObject("AARV17.Lines",class'Texture') );
 	Lines = default.Lines;
 	Scope = default.Scope;
 
-	default.MultiSkins[0] = OrgClass.default.MultiSkins[0];
-	default.MultiSkins[1] = OrgClass.default.MultiSkins[1];
-	default.MultiSkins[2] = OrgClass.default.MultiSkins[2];
-	default.MultiSkins[3] = OrgClass.default.MultiSkins[3];
-	MultiSkins[0] = default.MultiSkins[0];
-	MultiSkins[1] = default.MultiSkins[1];
-	MultiSkins[2] = default.MultiSkins[2];
-	MultiSkins[3] = default.MultiSkins[3];
-
 	BloodClass = Class<UT_BloodDrop>( DynamicLoadObject("AARV17.BloodDrop",class'class') );
 	Default.BloodClass = BloodClass;
-
-	default.Icon = OrgClass.default.Icon;
-	default.StatusIcon = default.Icon;
-	Icon = default.Icon;
-	StatusIcon = Icon;
 }
-
-simulated function PlayFiring()
-{
-	local int r;
-
-	PlayOwnedSound(FireSound, SLOT_None, Pawn(Owner).SoundDampening*3.0);
-	PlayAnim(FireAnims[Rand(5)],2.5 + 2.5 * FireAdjust, 0.05);
-	if ( (PlayerPawn(Owner) != None) && (PlayerPawn(Owner).DesiredFOV == PlayerPawn(Owner).DefaultFOV) )
-		bMuzzleFlash++;
-	if ( IsLC() && (Level.NetMode == NM_Client) )
-		LCChan.bDelayedFire = true;
-}
-
 
 simulated function ProcessTraceHit(Actor Other, Vector HitLocation, Vector HitNormal, Vector X, Vector Y, Vector Z)
 {
    local vector v;
    local int i;
    local UT_BloodDrop b;
-
+	local Actor HitEffect;
+   
 	if ( (Level.NetMode == NM_Client) || (BloodClass == none) )
 	{
 		Super.ProcessTraceHit( Other, HitLocation, HitNormal, X, Y, Z);
 		return;
 	}
 
-	if ((Other !=none) && (Other == Level))
-		Spawn(class'UT_HeavyWallHitEffect',,, HitLocation+HitNormal, Rotator(HitNormal));
+	if ( Other == Level )
+	{
+		HitEffect = Spawn( class'FV_HeavyWallHitEffect',,, HitLocation+HitNormal, Rotator(HitNormal));
+		class'LCStatics'.static.SetHiddenEffect( HitEffect, Owner, LCChan);
+	}
 	else if ((Other != self) && (Other != Owner) && (Other != None))
 	{
 		if ( Other.bIsPawn )
@@ -94,46 +61,47 @@ simulated function ProcessTraceHit(Actor Other, Vector HitLocation, Vector HitNo
 		&& (instigator.IsA('PlayerPawn') || (instigator.IsA('Bot') && !Bot(Instigator).bNovice))
 		&& ((Owner.Physics != PHYS_Falling && Owner.Physics != PHYS_Swimming && Pawn(Owner).bDuck != 0)
 		|| Owner.Velocity == 0 * Owner.Velocity) )
-
 		{
-         if ( Pawn(Other).Health > 0 )
-	 {
-            Other.TakeDamage( HeadshotDamage, Pawn(Owner), HitLocation, 35000 * X, AltDamageType);
-	    if ( Pawn(Other).Health < 1 )
-            {
-               AmmoType.AddAmmo(3);
-               Spawn(class'UT_BigBloodHit',,, HitLocation);
-  	       for (i=0; i<(6); i++)
-	       {
-		  v = HitLocation;
-		  v.X += 10 * FRand();
-		  v.X -= 15 * FRand();
-		  v.Y += 10 * FRand();
-		  v.Y -= 15 * FRand();
-		  v.Z += 10 * FRand();
-		  v.Z -= 15 * FRand();
-		  Spawn(class'UT_BloodHit',,, v);
-               }
-	       for (i=0; i<(3); i++)
-               {
-		  v = HitLocation;
-		  v.X += 5 * FRand();
-		  v.X -= 7 * FRand();
-		  v.Y += 5 * FRand();
-		  v.Y -= 7 * FRand();
-		  v.Z += 5 * FRand();
-		  v.Z -= 7 * FRand();
-		  Spawn(class'BloodBurst',,, v);
+			if ( Pawn(Other).Health > 0 )
+			{
+				Other.TakeDamage( HeadshotDamage, Pawn(Owner), HitLocation, 35000 * X, AltDamageType);
+				if ( Pawn(Other).Health < 1 )
+				{
+					AmmoType.AddAmmo(3);
+					Spawn(class'UT_BigBloodHit',,, HitLocation);
+					for (i=0; i<(6); i++)
+					{
+						v = HitLocation;
+						v.X += 10 * FRand();
+						v.X -= 15 * FRand();
+						v.Y += 10 * FRand();
+						v.Y -= 15 * FRand();
+						v.Z += 10 * FRand();
+						v.Z -= 15 * FRand();
+						Spawn(class'UT_BloodHit',,, v);
+					}
+					for (i=0; i<(3); i++)
+					{
+						v = HitLocation;
+						v.X += 5 * FRand();
+						v.X -= 7 * FRand();
+						v.Y += 5 * FRand();
+						v.Y -= 7 * FRand();
+						v.Z += 5 * FRand();
+						v.Z -= 7 * FRand();
+						Spawn(class'BloodBurst',,, v);
 
-		  v = HitLocation;
-		  v.X += 7 * FRand();
-		  v.X -= 10 * FRand();
-		  v.Y += 7 * FRand();
-		  v.Y -= 10 * FRand();
-		  v.Z += 7 * FRand();
-		  v.Z -= 10 * FRand();
-		  Spawn(class'BloodBurst',,, v);
-               }
+						v = HitLocation;
+						v.X += 7 * FRand();
+						v.X -= 10 * FRand();
+						v.Y += 7 * FRand();
+						v.Y -= 10 * FRand();
+						v.Z += 7 * FRand();
+						v.Z -= 10 * FRand();
+						Spawn(class'BloodBurst',,, v);
+					}
+					if ( BloodClass == None )
+						return;
  	       for (i=0; i<(80); i++)
                {
 		  b = Spawn( BloodClass,,, HitLocation);
@@ -159,8 +127,11 @@ simulated function ProcessTraceHit(Actor Other, Vector HitLocation, Vector HitNo
 	else
 		Other.TakeDamage( NormalDamage,  Pawn(Owner), HitLocation, 30000.0*X, MyDamageType);
 
-	if ( !Other.bIsPawn && !Other.IsA('Carcass') )
-		spawn(class'UT_SpriteSmokePuff',,,HitLocation+HitNormal*9);
+		if ( !Other.bIsPawn && !Other.IsA('Carcass') )
+		{
+			HitEffect = Spawn( class'FV_SpriteSmokePuff',,, HitLocation+HitNormal*9);
+			class'LCStatics'.static.SetHiddenEffect( HitEffect, Owner, LCChan);
+		}
 	}
 }
 
@@ -303,6 +274,7 @@ state Zooming
 defaultproperties
 {
     ffRefireTimer=0.133
+	FireAnimRate=5
     DeathMessage="%k put a alienbullet through %o's brain."
     ItemName="Alien Sniper Rifle"
     PickupMessage="You picked up a AlienAssaultRifle."

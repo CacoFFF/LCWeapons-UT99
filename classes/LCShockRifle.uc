@@ -124,6 +124,16 @@ simulated function PlayAltFiring()
 		LCChan.ClientFire(true);
 }
 
+function Projectile ProjectileFire( class<Projectile> ProjClass, float ProjSpeed, bool bWarn)
+{
+	local Projectile P;
+	
+	P = Super.ProjectileFire( ProjClass, ProjSpeed, bWarn);
+	if ( (P != None) && (class'LCStatics'.default.XCGE_Version > 0) )
+		P.SetPropertyText("bSuperClassRelevancy","1");
+	return P;	
+}
+
 simulated function Projectile ffSimProj( class<projectile> ProjClass, float ProjSpeed)
 {
 	local Vector Start, X,Y,Z;
@@ -252,14 +262,10 @@ simulated function SpawnEffect( vector HitLocation, vector SmokeLocation)
 	SmokeRotation = rotator(DVector);
 	SmokeRotation.Roll = Rand(65535);
 	
-	Beam = Spawn( class'FV_AdaptiveBeam', Owner,, SmokeLocation, SmokeRotation);
+	Beam = Spawn( class'FV_AdaptiveBeam',,, SmokeLocation, SmokeRotation);
 	Beam.MoveAmount = DVector/NumPoints;
 	Beam.NumPuffs = NumPoints - 1;	
-	if ( IsLC() && (Level.NetMode != NM_Client) )
-	{
-		Beam.SetPropertyText("bIsLC","1");
-		Beam.SetPropertyText("bNotRelevantToOwner","1");
-	}
+	class'LCStatics'.static.SetHiddenEffect( Beam, Owner, LCChan);
 	EditBeam( Beam);
 }
 
@@ -267,12 +273,8 @@ simulated function SpawnExplosion( vector HitLocation, vector HitNormal)
 {
 	local Effects Explosion;
 
-	Explosion = Spawn( ExplosionClass, Owner,, HitLocation+HitNormal*8,rotator(HitNormal));
-	if ( IsLC() && (Level.NetMode != NM_Client) )
-	{
-		Explosion.SetPropertyText("bIsLC","1");
-		Explosion.SetPropertyText("bNotRelevantToOwner","1");
-	}
+	Explosion = Spawn( ExplosionClass,,, HitLocation+HitNormal*8,rotator(HitNormal));
+	class'LCStatics'.static.SetHiddenEffect( Explosion, Owner, LCChan);
 	EditExplosion( Explosion);
 }
 

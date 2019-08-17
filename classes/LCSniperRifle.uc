@@ -7,10 +7,12 @@ class LCSniperRifle expands SniperRifle;
 
 
 var XC_CompensatorChannel LCChan;
-var bool bSimulatingEffect;
 var float ffRefireTimer; //This will enforce security checks
 var float ffAimError; //If random seed != 0, do AimError serverside
+var float FireAnimRate;
 var int NormalDamage, HeadshotDamage;
+var Texture Crosshair;
+var Texture FirstPersonSkins[4];
 
 replication
 {
@@ -18,7 +20,7 @@ replication
 		FixOffset;
 }
 
-function inventory SpawnCopy( pawn Other )
+function Inventory SpawnCopy( Pawn Other )
 {
 	return Class'LCStatics'.static.SpawnCopy(Other,self);
 }
@@ -27,10 +29,12 @@ function GiveTo( pawn Other )
 	Class'LCStatics'.static.GiveTo(Other,self);
 }
 
-function SetSwitchPriority(pawn Other)
+function SetSwitchPriority( Pawn Other)
 {
 	Class'LCStatics'.static.SetSwitchPriority( Other, self, 'SniperRifle');
 }
+
+simulated function ModifyFireRate();
 
 simulated event KillCredit( actor Other)
 {
@@ -40,9 +44,21 @@ simulated event KillCredit( actor Other)
 		if ( LCChan.bDelayedFire )
 		{
 			LCChan.bDelayedFire = false;
-			ffTraceFire();
+			ffTraceFire(ffAimError);
 		}
 	}
+}
+
+simulated event RenderOverlays( canvas Canvas )
+{
+	local int i;
+	For ( i=0 ; i<4 ; i++ )
+		if ( FirstPersonSkins[i] != None )
+			MultiSkins[i] = FirstPersonSkins[i];
+	Super.RenderOverlays(Canvas);
+	For ( i=0 ; i<4 ; i++ )
+		if ( FirstPersonSkins[i] != None )
+			MultiSkins[i] = default.MultiSkins[i];
 }
 
 simulated function PlayPostSelect()
@@ -53,13 +69,13 @@ simulated function PlayPostSelect()
 }
 
 
-function SetHand (float hand)
+function SetHand( float hand)
 {
 	Super.SetHand(hand);
 	FixOffset(FireOffset.Y);
 }
 
-simulated function FixOffset (float Y)
+simulated function FixOffset( float Y)
 {
 	FireOffset.Y=Y;
 }
@@ -71,7 +87,17 @@ simulated function bool IsLC()
 
 simulated function PlayFiring()
 {
-	Super.PlayFiring();
+	ModifyFireRate();
+	PlayOwnedSound(FireSound, SLOT_None, Pawn(Owner).SoundDampening*3.0);
+	if ( FireAnimRate >= 2 )
+		PlayAnim( FireAnims[4], FireAnimRate * (0.5 + 0.5 * FireAdjust), 0.05);
+	else
+		PlayAnim( FireAnims[Rand(5)], FireAnimRate * (0.5 + 0.5 * FireAdjust), 0.05);
+	ffRefireTimer = class'LCStatics'.static.AnimationTime( self);
+	
+	if ( (PlayerPawn(Owner) != None) && (PlayerPawn(Owner).DesiredFOV == PlayerPawn(Owner).DefaultFOV) )
+		bMuzzleFlash++;
+	
 	if ( IsLC() && (Level.NetMode == NM_Client) )
 		LCChan.ClientFire();
 }
@@ -80,11 +106,13 @@ simulated function PlayFiring()
 function TraceFire( float Accuracy )
 {
 	local vector HitLocation, HitNormal, StartTrace, EndTrace, X,Y,Z;
-	local actor Other;
+	local Actor Other;
 	local Pawn PawnOwner;
 
 	if ( IsLC() )
 		return;
+	if ( Accuracy == 0 )
+		Accuracy = ffAimError;
 	PawnOwner = Pawn(Owner);
 
 	Owner.MakeNoise(PawnOwner.SoundDampening);
@@ -131,27 +159,25 @@ simulated function ffTraceFire( optional float Accuracy)
 		LCChan.ffSendHit( ffOther, self, -1, Level.TimeSeconds, ffHitLocation, ffHitLocation - ffOther.Location, ffStartTrace, class'LCStatics'.static.CompressRotator(ffRot), 12 | Seed, Accuracy);
 }
 
-simulated function ProcessTraceHit(Actor Other, Vector HitLocation, Vector HitNormal, Vector X, Vector Y, Vector Z)
+simulated function ProcessTraceHit( Actor Other, Vector HitLocation, Vector HitNormal, Vector X, Vector Y, Vector Z)
 {
 	local UT_Shellcase s;
+	local Actor HitEffect;
 	local bool bSpecialEff;
 
 	bSpecialEff = IsLC() && (Level.NetMode != NM_Client); //Spawn for LC clients
 
-	if ( bSpecialEff )
-		s = Spawn(class'zp_ShellCase',Owner, '', Owner.Location + CalcDrawOffset() + 30 * X + (2.8 * FireOffset.Y+5.0) * Y - Z * 1);
-	else
-		s = Spawn(class'UT_ShellCase',, '', Owner.Location + CalcDrawOffset() + 30 * X + (2.8 * FireOffset.Y+5.0) * Y - Z * 1);
-
+	s = Spawn(class'FV_ShellCase',,, Owner.Location + CalcDrawOffset() + 30 * X + (2.8 * FireOffset.Y+5.0) * Y - Z * 1);
 	if ( s != None ) 
 	{
 		s.DrawScale = 2.0;
-		s.Eject(((FRand()*0.3+0.4)*X + (FRand()*0.2+0.2)*Y + (FRand()*0.3+1.0) * Z)*160);              
+		s.Eject(((FRand()*0.3+0.4)*X + (FRand()*0.2+0.2)*Y + (FRand()*0.3+1.0) * Z)*160); 
+		class'LCStatics'.static.SetHiddenEffect( s, Owner, LCChan);
 	}
-	if (Other == Level) 
+	if ( Other == Level ) 
 	{
-		if ( bSpecialEff )		Spawn(class'zp_HeavyWallHitEffect',Owner,, HitLocation+HitNormal, Rotator(HitNormal));
-		else		Spawn(class'UT_HeavyWallHitEffect',,, HitLocation+HitNormal, Rotator(HitNormal));
+		HitEffect = Spawn( class'FV_HeavyWallHitEffect',,, HitLocation+HitNormal, Rotator(HitNormal));
+		class'LCStatics'.static.SetHiddenEffect( HitEffect, Owner, LCChan);
 	}
 	else if ( (Other != self) && (Other != Owner) && (Other != None) ) 
 	{
@@ -172,8 +198,8 @@ simulated function ProcessTraceHit(Actor Other, Vector HitLocation, Vector HitNo
 		}
 		if ( !Other.bIsPawn && !Other.IsA('Carcass') )
 		{
-			if ( bSpecialEff )			spawn(class'zp_SpriteSmokePuff',Owner,,HitLocation+HitNormal*9);	
-			else			spawn(class'UT_SpriteSmokePuff',,,HitLocation+HitNormal*9);	
+			HitEffect = Spawn( class'FV_SpriteSmokePuff',,, HitLocation+HitNormal*9);
+			class'LCStatics'.static.SetHiddenEffect( HitEffect, Owner, LCChan);
 		}
 	}
 }
@@ -190,9 +216,52 @@ static function float HeadshotHeight( Pawn Other)
 	return Result;
 }
 
+simulated function bool FiringAnimation()
+{
+	local int i;
+	For ( i=0 ; i<5 ; i++ )
+		if ( AnimSequence == FireAnims[i] )
+			return true;
+	return false;
+}
+
+//***********************************************************************
+//Fix Idle's fire override causing misordered PlayFiring/TraceFire events
+//***********************************************************************
+state Idle
+{
+	function Fire( float Value )
+	{
+		if ( Owner.IsA('Bot') )
+		{
+			// simulate bot using zoom
+			if ( Bot(Owner).bSniping && (FRand() < 0.65) )
+				AimError = AimError/FClamp(StillTime, 1.0, 8.0);
+			else if ( VSize(Owner.Location - OwnerLocation) < 6 )
+				AimError = AimError/FClamp(0.5 * StillTime, 1.0, 3.0);
+			else
+				StillTime = 0;
+		}			
+		Global.Fire( Value);
+		AimError = Default.AimError;
+	}
+	
+Begin:
+	bPointing=False;
+	if ( AmmoType.AmmoAmount <= 0 ) 
+		Pawn(Owner).SwitchToBestWeapon();  //Goto Weapon that has Ammo
+	if ( Pawn(Owner).bFire!=0 ) Fire(0.0);
+	Disable('AnimEnd');
+	PlayIdleAnim();
+}
+
+
+
+
 defaultproperties
 {
-	ffRefireTimer=0.649
+	ffRefireTimer=0.65
+	FireAnimRate=1.0
 	NormalDamage=45
 	HeadshotDamage=100
 }

@@ -121,20 +121,20 @@ function TraceFire( float Accuracy )
 function ProcessTraceHit(Actor Other, Vector HitLocation, Vector HitNormal, Vector X, Vector Y, Vector Z)
 {
 	local int rndDam;
-	local bool bIsLC;
+	local Actor HitEffect;
 
-	bIsLC = IsLC();
 	if (Other == Level) 
 	{
-		if ( bIsLC && LCChan.LCActor.bNeedsHiddenEffects )
-			Spawn(class'LCLightWallHitEffect',Owner,, HitLocation+HitNormal, Rotator(HitNormal));
-		else
-			Spawn(class'UT_LightWallHitEffect',Owner,, HitLocation+HitNormal, Rotator(HitNormal)).SetPropertyText("bNotRelevantToOwner", string(bIsLC));
+		HitEffect = Spawn( class'FV_LightWallHitEffect',,, HitLocation+HitNormal, Rotator(HitNormal));
+		class'LCStatics'.static.SetHiddenEffect( HitEffect, Owner, LCChan);
 	}
 	else if ( (Other!=self) && (Other!=Owner) && (Other != None) ) 
 	{
 		if ( !Other.bIsPawn && !Other.IsA('Carcass') )
-			Spawn(class'UT_SpriteSmokePuff',Owner,,HitLocation+HitNormal*9).SetPropertyText("bNotRelevantToOwner", string(bIsLC));
+		{
+			HitEffect = Spawn( class'FV_SpriteSmokePuff',,, HitLocation+HitNormal*9);
+			class'LCStatics'.static.SetHiddenEffect( HitEffect, Owner, LCChan);
+		}
 		else
 			Other.PlaySound(Sound 'ChunkHit',, 4.0,,100);
 
@@ -210,7 +210,7 @@ simulated function SimGenerateBullet()
 simulated function SimTraceFire( float Accuracy )
 {
 	local vector HitLocation, HitNormal, StartTrace, EndTrace, X,Y,Z;
-	local actor Other, aActor;
+	local Actor Other;
 
 	if ( Owner == none )
 		return;
@@ -218,20 +218,8 @@ simulated function SimTraceFire( float Accuracy )
 
 	StartTrace = Owner.Location + CalcDrawOffset() + FireOffset.Y * Y + FireOffset.Z * Z;  //CALCDRAWOFFSET MIGHT SCREW UP THINGS
 	EndTrace = StartTrace + Accuracy * (FRand() - 0.5 )* Y * 1000 + Accuracy * (FRand() - 0.5 ) * Z * 1000;
-	EndTrace += (10000 * X); 
-	ForEach Owner.TraceActors( class'Actor', aActor, HitLocation, HitNormal, EndTrace, StartTrace)
-	{
-		if ( Class'LCStatics'.static.TraceStopper( aActor) )
-		{	Other = aActor;
-			break;
-		}
-		if ( (!aActor.bProjTarget && !aActor.bBlockActors) || (aActor == Owner) )
-			continue;
-		if ( aActor.IsA('Pawn') && !Pawn(aActor).AdjustHitLocation(HitLocation, EndTrace - StartTrace) )
-			continue;
-		Other = aActor;
-		break;
-	}
+	EndTrace += (10000 * X);
+	Other = class'LCStatics'.static.ffTraceShot( HitLocation, HitNormal, EndTrace, StartTrace, Pawn(Owner));
 	if ( bSpawnTracers )
 	{
 		Count++;
@@ -242,7 +230,7 @@ simulated function SimTraceFire( float Accuracy )
 				Spawn(class'MTracer',,, StartTrace + 96 * X,rotator(EndTrace - StartTrace));
 		}
 	}
-	if (Other == Level) 
+	if ( Other == Level ) 
 		Spawn(class'UT_LightWallHitEffect',Owner,, HitLocation+HitNormal, Rotator(HitNormal));
 }
 

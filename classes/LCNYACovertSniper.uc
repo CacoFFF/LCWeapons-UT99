@@ -4,116 +4,26 @@
 
 class LCNYACovertSniper expands LCSniperRifle;
 
-var bool bFastFire;
-var bool bGraphicsInitialized;
 var bool bZoom;
-var Texture Crosshair;
 
-simulated event Spawned()
+simulated function ModifyFireRate()
 {
-	if ( !bGraphicsInitialized )
-		InitGraphics();
-}
-
-simulated function InitGraphics()
-{
-	local class<TournamentWeapon> OrgClass;
-
-	default.bGraphicsInitialized = true;
-	OrgClass = class<TournamentWeapon>( DynamicLoadObject("NYACovertSniper.NYACovertSniper",class'class') );
-	default.FireSound = OrgClass.default.FireSound;
-	FireSound = default.FireSound;
-	default.AmmoName = OrgClass.default.AmmoName;
-	AmmoName = default.AmmoName;
-	default.Crosshair = Texture( DynamicLoadObject("NYACovertSniper.Crosshair",class'Texture') );
-	Crosshair = default.Crosshair;
-	default.MultiSkins[0] = Texture( DynamicLoadObject("NYACovertSniper.Rifle.WolfRifle2A0",class'Texture') );
-	default.MultiSkins[1] = Texture( DynamicLoadObject("NYACovertSniper.Rifle.WolfRifle2B0",class'Texture') );
-	MultiSkins[0] = default.MultiSkins[0];
-	MultiSkins[1] = default.MultiSkins[1];
-}
-
-simulated function CheckMove()
-{
+	local bool bFastFire;
+	
 	bFastFire = (Owner.Physics != PHYS_Falling && Owner.Physics != PHYS_Swimming && Pawn(Owner).BaseEyeHeight <= 0) || Owner.Velocity == vect(0,0,0);
 	if ( bFastFire )
-		ffRefireTimer = default.ffRefireTimer / 4.9;
-	else
-		ffRefireTimer = default.ffRefireTimer;
-}
-
-simulated function PlayFiring()
-{
-	if ( Level.NetMode == NM_Client )
 	{
-		CheckMove();
-		if ( IsInState('ClientFiring') )
+		FireAnimRate = 5;
+		ffAimError = 0;
+	}
+	else
+	{
+		FireAnimRate = default.FireAnimRate;
+		if ( FiringAnimation() )
 			ffAimError = default.ffAimError;
 		else
 			ffAimError = 1.6;
 	}
-
-	PlayOwnedSound(FireSound, SLOT_None, Pawn(Owner).SoundDampening*3.0);
-
-	if ( bFastFire )	PlayAnim(FireAnims[Rand(5)], 2.5 + 2.5 * FireAdjust, 0.05);
-	else			PlayAnim(FireAnims[Rand(5)], 0.5 + 0.5 * FireAdjust, 0.05);
-
-	if ( (PlayerPawn(Owner) != None) && (PlayerPawn(Owner).DesiredFOV == PlayerPawn(Owner).DefaultFOV) )
-		bMuzzleFlash++;
-	if ( IsLC() && (Level.NetMode == NM_Client) )
-		LCChan.bDelayedFire = true;
-}
-
-function TraceFire( float Accuracy )
-{
-	if ( bFastFire )
-		Super.TraceFire(0);
-	else
-		Super.TraceFire( ffAimError);
-}
-
-simulated event KillCredit( actor Other)
-{
-	if ( XC_CompensatorChannel(Other) != none )
-	{
-		LCChan = XC_CompensatorChannel(Other);
-		if ( LCChan.bDelayedFire )
-		{
-			if ( bFastFire )
-				ffTraceFire();
-			else
-				ffTraceFire(ffAimError);
-		}
-	}
-}
-
-event Tick( float DeltaTime)
-{
-	if ( Owner != none && Pawn(Owner).Weapon == self )
-		CheckMove();
-}
-
-state NormalFire
-{
-Begin:
-	FlashCount++;
-	Sleep(0.2); //This time is the window to reset aim error
-	ffAimError = default.ffAimError; //Should be 50
-}
-
-state Idle
-{
-	event BeginState()
-	{
-		ffAimError = 1.6;
-	}
-Begin:
-	bPointing=False;
-	if ( AmmoType.AmmoAmount<=0 )
-		Pawn(Owner).SwitchToBestWeapon();  //Goto Weapon that has Ammo
-	if ( Pawn(Owner).bFire!=0 ) Fire(0.0);
-	Disable('AnimEnd');
-	PlayIdleAnim();
 }
 
 simulated function PostRender( canvas Canvas )

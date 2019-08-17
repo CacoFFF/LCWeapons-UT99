@@ -11,12 +11,6 @@ var float AccuracyScale;
 var XC_CompensatorChannel LCChan;
 var bool bBulletNow;
 
-//0 is normal effect, 1 is hidden effect
-var class<UT_Shellcase> ShellCaseClass[2];
-var class<Actor> SingleWallHitClass[2]; //For Single enforcer
-var class<Actor> DoubleWallHitClass[2]; //For Double enforcer
-var class<Actor> SmokeHitClass[2];
-
 replication
 {
 	reliable if ( Role == ROLE_Authority )
@@ -171,26 +165,21 @@ function TraceFire(float Accuracy)
 simulated function ProcessTraceHit(Actor Other, Vector HitLocation, Vector HitNormal, Vector X, Vector Y, Vector Z)
 {
 	local UT_Shellcase s;
-	local int EffIdx;
-	local Actor SpawnOwner;
-	local bool bIsLC;
+	local Actor HitEffect;
 
-	bIsLC = IsLC();
-	if ( bIsLC )	SpawnOwner = Owner; //Needs to be hidden from someone
-	EffIdx = int(bIsLC && (Level.NetMode != NM_Client) && LCChan.LCActor.bNeedsHiddenEffects);
-
-	s = Spawn( ShellCaseClass[EffIdx], SpawnOwner, '', Owner.Location + CalcDrawOffset() + 20 * X + FireOffset.Y * Y + Z);
+	s = Spawn( class'FV_ShellCase',,, Owner.Location + CalcDrawOffset() + 20 * X + FireOffset.Y * Y + Z);
 	if ( s != None )
 	{
 		s.Eject(((FRand()*0.3+0.4)*X + (FRand()*0.2+0.2)*Y + (FRand()*0.3+1.0) * Z)*160);              
-		s.SetPropertyText("bNotRelevantToOwner",string(bIsLC));
+		class'LCStatics'.static.SetHiddenEffect( s, Owner, LCChan);
 	}
 	if (Other == Level) 
 	{
 		if ( bIsSlave || (SlaveEnforcer != None) )
-			Spawn( DoubleWallHitClass[EffIdx], SpawnOwner,, HitLocation+HitNormal, rotator(HitNormal)).SetPropertyText("bNotRelevantToOwner",string(bIsLC));
+			HitEffect = Spawn( class'FV_LightWallHitEffect',,, HitLocation+HitNormal, rotator(HitNormal));
 		else
-			Spawn( SingleWallHitClass[EffIdx], SpawnOwner,, HitLocation+HitNormal, rotator(HitNormal)).SetPropertyText("bNotRelevantToOwner",string(bIsLC));
+			HitEffect = Spawn( class'FV_WallHit',,, HitLocation+HitNormal, rotator(HitNormal));
+		class'LCStatics'.static.SetHiddenEffect( HitEffect, Owner, LCChan);
 	}
 	else if ((Other != self) && (Other != Owner) && (Other != None) ) 
 	{
@@ -198,10 +187,12 @@ simulated function ProcessTraceHit(Actor Other, Vector HitLocation, Vector HitNo
 			X *= 5;
 		Other.TakeDamage(HitDamage, Pawn(Owner), HitLocation, 3000.0*X, MyDamageType);
 		if ( !Other.bIsPawn && !Other.IsA('Carcass') )
-			Spawn( SmokeHitClass[EffIdx], SpawnOwner,,HitLocation+HitNormal*9).SetPropertyText("bNotRelevantToOwner",string(bIsLC));
+		{
+			HitEffect = Spawn( class'FV_SpriteSmokePuff',,, HitLocation+HitNormal*9);
+			class'LCStatics'.static.SetHiddenEffect( HitEffect, Owner, LCChan);
+		}
 		else
 			Other.PlaySound(Sound 'ChunkHit',, 4.0,,100);
-
 	}		
 }
 
@@ -346,12 +337,4 @@ defaultproperties
 {
      AccuracyScale=1.000000
      hitdamage=17
-     ShellCaseClass(0)=class'UT_ShellCase'
-     ShellCaseClass(1)=class'zp_ShellCase'
-     SingleWallHitClass(0)=class'UT_WallHit'
-     SingleWallHitClass(1)=class'LCWallHit'
-     DoubleWallHitClass(0)=class'UT_LightWallHitEffect'
-     DoubleWallHitClass(1)=class'LCLightWallHitEffect'
-     SmokeHitClass(0)=class'UT_SpriteSmokePuff'
-     SmokeHitClass(1)=class'zp_SpriteSmokePuff'
 }

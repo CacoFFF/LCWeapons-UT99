@@ -343,7 +343,7 @@ function float ffMaxLag()
 }
 //OBFEND
 
-function bool ValidateAccuracy( XC_CompensatorChannel LCChan, int CmpRot, vector Start, vector End, float Accuracy, int Flags, out byte Imprecise)
+function bool ValidateAccuracy( XC_CompensatorChannel LCChan, int CmpRot, vector Start, vector End, float Accuracy, int Flags, out byte Imprecise, out string Error)
 {
 	local vector aVec;
 	local pawn P;
@@ -365,7 +365,7 @@ function bool ValidateAccuracy( XC_CompensatorChannel LCChan, int CmpRot, vector
 	{
 		if ( (Imprecise > 0) || (VSize( aVec - Normal(End-Start)) > 0.20) )
 		{
-			LCChan.RejectShot( "DIRECTION DIFF IS :"$ VSize( aVec - Normal(End-Start)));
+			Error = "DIRECTION DIFF IS :"$ VSize( aVec - Normal(End-Start));
 			return false;
 		}
 		Imprecise++;	
