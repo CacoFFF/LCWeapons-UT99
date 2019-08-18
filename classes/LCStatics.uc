@@ -7,6 +7,7 @@ class LCStatics expands Object
 
 #exec OBJ LOAD FILE="LCPureUtil.u" PACKAGE=LCWeapons_0022
 #exec OBJ LOAD FILE="SiegeUtil_A.u" PACKAGE=LCWeapons_0022
+#exec OBJ LOAD FILE="TimerUtil.u" PACKAGE=LCWeapons_0022
 
 const MULTIPLIER = 0x015a4e35;
 const INCREMENT = 1;
@@ -51,6 +52,13 @@ static final function rotator PlayerRot( Pawn P)
 	return class'LCPureRotation'.static.PlayerRot(P);
 }
 
+//**********************************************
+//Use the util to modify an actor's TimerCounter
+//**********************************************
+static final function SetTimerCounter( Actor Other, float NewCounter)
+{
+	class'TimerUtil'.static.SetTimerCounter( Other, NewCounter);
+}
 
 //*****************
 //Swap two integers

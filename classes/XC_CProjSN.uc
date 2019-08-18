@@ -4,13 +4,13 @@ var XC_CompensatorChannel Channel;
 var XC_ElementAdvancer Advancer;
 var Projectile Stored[256];
 var float RemainingAdv[256];
-var int iStored, iHighest;
+var int iStored, iStoredNew;
 
-var XC_ProjSimulator Simulators[32];
-var int iSimul;
+var Projectile PendingOwned[32];
+var int iPending;
 
-var Projectile PendingTrailers[16];
-var int iTrailer;
+var XC_ProjSimulator SimulatorList;
+
 
 function Setup( XC_CompensatorChannel COwner, XC_ElementAdvancer EAdv)
 {
@@ -20,24 +20,27 @@ function Setup( XC_CompensatorChannel COwner, XC_ElementAdvancer EAdv)
 
 event Actor SpawnNotification( Actor A)
 {
+	local XC_ProjSimulator Sim;
 //	if ( A.Role == ROLE_Authority && A.RemoteRole == ROLE_None ) //Spawned by client with authoritary control (not for simulation purposes)
 //		return A;
 
-	if ( Channel.ProjAdv > 0 )
+	if ( (Channel.ProjAdv > 0) && (Projectile(A).default.Damage != 0) )
 	{
-		if ( XC_ProjSimulator(A) != none )
+		Sim = XC_ProjSimulator(A);
+		if ( Sim != none )
 		{
-			Simulators[iSimul++] = XC_ProjSimulator(A);
-			XC_ProjSimulator(A).Notify = self;
-			XC_ProjSimulator(A).ssCounter = Channel.cAdv; //Temporary, requires bWeaponAnim
-			XC_ProjSimulator(A).ssPredict = Channel.ProjAdv;
+			Sim.Notify = self;
+			Sim.NextSimulator = SimulatorList;
+			SimulatorList = Sim;
+			Sim.ssCounter = Channel.cAdv; //Temporary, requires bWeaponAnim
+			Sim.ssPredict = Channel.ProjAdv;
 		}
 		else if ( A.default.bNetTemporary || A.default.RemoteRole == ROLE_SimulatedProxy )
 		{
-			if ( iStored < ArrayCount(Stored) )
+			if ( iStoredNew < ArrayCount(Stored) )
 			{
-				RemainingAdv[iStored] = Channel.ProjAdv;
-				Stored[iStored++] = Projectile(A);
+				RemainingAdv[iStoredNew] = Channel.ProjAdv;
+				Stored[iStoredNew++] = Projectile(A);
 			}
 		}
 		else //Guided warheads?
@@ -48,114 +51,119 @@ event Actor SpawnNotification( Actor A)
 
 event Tick( float DeltaTime)
 {
-	local int i, j;
-	local float RemAdj;
-	local Projectile P;
-	local XC_ProjSimulator PJ;
+	local int i;
 	local Effects Trail;
+	local PlayerPawn Client;
+	local bool bVisible;
+	local vector ClientView;
 
-	RemAdj = fClamp( DeltaTime / Level.TimeDilation, 0.01, 0.05) * Level.TimeDilation;
-
-//	i=0;
-	while ( i<iSimul )
-	{
-		if ( Simulators[i] == none || Simulators[i].bDeleteMe || Simulators[i].Physics == PHYS_None )
-		{
-			Simulators[i] = Simulators[--iSimul];
-			Simulators[iSimul] = none;
-			continue;
-		}
-		Simulators[i].SimTag = i;
-		i++;
-	}
-
-	//Make sure lowest slot of new ones is candidate
-	while ( (iHighest < ArrayCount(Stored)) && (Stored[iHighest] != none) && (Stored[iHighest].Instigator != Channel.LocalPlayer) )
-		iHighest++;
-	//Now move candidate upwards to replace non-candidates, compacting the block
-	//RemainingAdv is identical in all cases!!
-	for ( i=iHighest+1 ; i<iStored ; i++ )
-		if ( (Stored[i] == none) || (Stored[i].Instigator != Channel.LocalPlayer) )
-		{
-			P = Stored[iHighest];
-			Stored[iHighest++] = Stored[i];
-			Stored[i] = P;
-		}
+	Client = Channel.LocalPlayer;
+	if ( Client == None || DeltaTime == 0.0 || iStoredNew == 0 )
+		return;
 	
-	//Check the new ones (all have the player as instigator)
-	for ( i=iHighest ; i<iStored ; i++ )
+	ClientView = Client.Location;
+	ClientView.Z += Client.EyeHeight;
+	
+	// Remove deleted and pre-processed entries:
+	// - Assimilated projectiles are advanced according to assimilator
+	// - Advanced (owned) projectiles are given to the element advancer
+	// - Non-visible projectiles are advanced in full
+	// Note: RemainingAdv is identical in all entries
+	for ( i=iStoredNew-1 ; i>=iStored ; i-- )
 	{
-		PJ = none;
-		for ( j=0 ; j<iSimul ; j++ )
-			Simulators[j].AssessProjectile( Stored[i], PJ);
-		if ( PJ != none ) //Capture
+		if ( Stored[i] == None || Stored[i].bDeleteMe )
 		{
-			PJ.Assimilate( Stored[i]);
-			Simulators[PJ.SimTag] = Simulators[--iSimul];
-			Simulators[iSimul] = none;
-		}
-		else //Not captured by a simulator, use element advancer instead!
-		{
-			if ( iTrailer < ArrayCount(PendingTrailers) )
-				PendingTrailers[iTrailer++] = Stored[i];
-			Advancer.RegisterAdvance( Stored[i] );
-		}
-		//In all cases we get rid of our projectile, let next loop cleanup this mess
-		Stored[i] = none;
-	}
-
-	i=0;
-	while ( i<iStored )
-	{
-		if ( Stored[i] == none || Stored[i].bDeleteMe )
-		{
-			REMOVE_ELEMENT:
-			Stored[i] = Stored[--iStored];
-			RemainingAdv[i] = RemainingAdv[iStored];
-			Stored[iStored] = none;
-			continue;
-		}
-		
-		if ( RemainingAdv[i] <= 0 || Stored[i].Velocity == Vect(0,0,0) )
-			Goto REMOVE_ELEMENT;
-		if ( RemainingAdv[i] > RemAdj )
-		{
-			RemainingAdv[i] -= RemAdj;
-			Stored[i].AutonomousPhysics( RemAdj);
+			REMOVE_NEW:
+			Stored[i] = Stored[--iStoredNew];
+			Stored[iStoredNew] = None;
 		}
 		else
 		{
-			Stored[i].AutonomousPhysics( RemainingAdv[i]);
-			Goto REMOVE_ELEMENT;
-		}
-		i++;
-	}
-	iHighest = iStored;
+			bVisible = Stored[i].FastTrace( ClientView);
+			if ( Stored[i].Instigator == Client )
+			{
+				if ( AssimilateProjectile( Stored[i]) )
+					Goto REMOVE_NEW;
+				if ( bVisible )
+				{
+					if ( iPending < ArrayCount(PendingOwned) )
+					{
+						Advancer.RegisterAdvance( Stored[i]); //Immediately register
+						PendingOwned[iPending++] = Stored[i]; //But process trailers one by one
+					}
+					Goto REMOVE_NEW;
+				}
+			}
 
-	if ( iTrailer > 0 )
+			if ( !bVisible )
+			{
+				AdvanceProjectile( Stored[i], RemainingAdv[i]);
+				Goto REMOVE_NEW;
+			}
+		}
+	}
+	
+	//Compact and update list
+	DeltaTime *= 1.25;
+	for ( i=iStoredNew-1 ; i>=0 ; i-- )
 	{
-		if ( PendingTrailers[i] != none && !PendingTrailers[i].bDeleteMe )
+		if ( Stored[i] == None || Stored[i].bDeleteMe || (Stored[i].Physics == PHYS_None) )
 		{
-			foreach PendingTrailers[i].ChildActors( class'Effects', Trail)
+			REMOVE_OLD:
+			Stored[i] = Stored[--iStoredNew];
+			RemainingAdv[i] = RemainingAdv[iStoredNew];
+			Stored[iStoredNew] = None;
+		}
+		else
+		{
+			AdvanceProjectile( Stored[i], FMin( RemainingAdv[i], DeltaTime));
+			if ( (RemainingAdv[i] -= DeltaTime) <= 0 )
+				Goto REMOVE_OLD;
+		}
+	}
+	iStored = iStoredNew;
+	
+	//Process actors being sent to the element advancer
+	if ( iPending > 0 )
+	{
+		if ( (PendingOwned[0] != none) && !PendingOwned[0].bDeleteMe )
+		{
+			ForEach PendingOwned[0].ChildActors( class'Effects', Trail)
 				if ( !Trail.bCollideActors && (Trail.Physics == PHYS_Trailer) )
 					Advancer.RegisterTrailer( Trail);
 		}
-		for ( i=1 ; i<iTrailer ; i++ )
-			PendingTrailers[i-1] = PendingTrailers[i];
-		PendingTrailers[--iTrailer] = none;
+		for ( i=1 ; i<iPending ; i++ )
+			PendingOwned[i-1] = PendingOwned[i];
+		PendingOwned[--iPending] = none;
 	}
-	
-/*	For ( i=0 ; i<iStored ; i++ )
+
+}
+
+function bool AssimilateProjectile( Projectile P)
+{
+	local XC_ProjSimulator Sim, BestSim;
+
+	for ( Sim=SimulatorList ; Sim!=None ; Sim=Sim.NextSimulator )
+		Sim.AssessProjectile( P, BestSim);
+		
+	if ( BestSim != None )
 	{
-		if ( Stored[i] == none )
-			continue;
-		Remaining = Channel.ProjAdv;
-		while ( Remaining > 0 )
-		{
-			Stored[i].AutonomousPhysics( Channel.ProjAdv);
-		}
-		Stored[i] = none;
-	}*/
+		BestSim.Assimilate( P);
+		return true;
+	}
+	return false;
+}
+
+function AdvanceProjectile( Projectile P, float AdvanceAmount)
+{
+	P.AutonomousPhysics( AdvanceAmount);
+	if ( P.bNetTemporary ) //This is a projectile i have simulated control over
+	{
+		if ( P.LifeSpan > FMax( AdvanceAmount, 1) )
+			P.LifeSpan -= AdvanceAmount;
+		if ( (P.TimerRate > 0) && (P.bTimerLoop || (P.TimerRate - P.TimerCounter > FMax(AdvanceAmount, 1))) )
+			class'LCStatics'.static.SetTimerCounter( P, P.TimerCounter + AdvanceAmount);
+	}
 }
 
 

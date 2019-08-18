@@ -4,13 +4,13 @@
 //=============================================================================
 class XC_ProjSimulator expands Projectile;
 
+var XC_CProjSN Notify;
+var XC_ProjSimulator NextSimulator;
 var vector SpawnedAt, InitialVelocity;
 var class<Projectile> ExpectedProj;
-var XC_CProjSN Notify;
 var float ssPredict;
 var float ssCounter;
 var float CurScore;
-var int SimTag; //Internal
 
 event Tick( float DeltaTime)
 {
@@ -24,14 +24,14 @@ event Tick( float DeltaTime)
 }
 
 
-function AssessProjectile( Projectile P, out XC_ProjSimulator PJ)
+function AssessProjectile( Projectile P, out XC_ProjSimulator BestSim)
 {
 	if ( (ExpectedProj != None) && !ClassIsChildOf( P.Class, ExpectedProj) )
 		return; //Assess any projectile if none expected
 	CurScore = (2+VSize(SpawnedAt-P.Location)) * (2+VSize(InitialVelocity-P.Velocity)) * ssCounter * ssCounter;
 //	Log( "LD="$VSize(SpawnedAt-P.Location)$", VD="$VSize(InitialVelocity-P.Velocity)$", T="$ssCounter$", Score="$CurScore );
-	if ( CurScore < 5 && (PJ == none || (CurScore < PJ.CurScore)) )
-		PJ = self; //Take this projectile
+	if ( CurScore < 5 && (BestSim == none || (CurScore < BestSim.CurScore)) )
+		BestSim = self; //Take this projectile
 }
 
 function Assimilate( Projectile P)
@@ -77,4 +77,29 @@ function StartMoving()
 	Velocity = InitialVelocity;
 	SetPhysics( ExpectedProj.default.Physics);
 	SetCollision( true);
+}
+
+event Destroyed()
+{
+	local XC_ProjSimulator Sim;
+	
+	if ( Notify == None )
+		return;
+		
+	if ( Notify.SimulatorList == self )
+		Notify.SimulatorList = NextSimulator;
+	else
+	{
+		For ( Sim=Notify.SimulatorList ; Sim!=None ; Sim=Sim.NextSimulator )
+			if ( Sim.NextSimulator == self )
+			{
+				Sim.NextSimulator = NextSimulator;
+				break;
+			}
+	}
+}
+
+defaultproperties
+{
+    Damage=-1
 }
