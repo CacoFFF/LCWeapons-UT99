@@ -6,9 +6,6 @@ var Projectile Stored[256];
 var float RemainingAdv[256];
 var int iStored, iStoredNew;
 
-var Projectile PendingOwned[32];
-var int iPending;
-
 var XC_ProjSimulator SimulatorList;
 
 
@@ -86,11 +83,7 @@ event Tick( float DeltaTime)
 					Goto REMOVE_NEW;
 				if ( bVisible )
 				{
-					if ( iPending < ArrayCount(PendingOwned) )
-					{
-						Advancer.RegisterAdvance( Stored[i]); //Immediately register
-						PendingOwned[iPending++] = Stored[i]; //But process trailers one by one
-					}
+					Advancer.RegisterAdvance( Stored[i]); //Immediately register
 					Goto REMOVE_NEW;
 				}
 			}
@@ -122,20 +115,6 @@ event Tick( float DeltaTime)
 		}
 	}
 	iStored = iStoredNew;
-	
-	//Process actors being sent to the element advancer
-	if ( iPending > 0 )
-	{
-		if ( (PendingOwned[0] != none) && !PendingOwned[0].bDeleteMe )
-		{
-			ForEach PendingOwned[0].ChildActors( class'Effects', Trail)
-				if ( !Trail.bCollideActors && (Trail.Physics == PHYS_Trailer) )
-					Advancer.RegisterTrailer( Trail);
-		}
-		for ( i=1 ; i<iPending ; i++ )
-			PendingOwned[i-1] = PendingOwned[i];
-		PendingOwned[--iPending] = none;
-	}
 
 }
 

@@ -221,7 +221,8 @@ function AdvancePositions( float DeltaTime)
 			continue;
 		}
 		Trailers[i].OldLoc = ToAdvance.Location;
-		ToAdvance.SetLocation( ToAdvance.Owner.Location + Trailers[i].Offset);
+//		ToAdvance.SetLocation( ToAdvance.Owner.Location + Trailers[i].Offset);
+		ToAdvance.AutonomousPhysics( 0.0);
 		Trailers[i].bAdvanced = true;
 	}
 	
@@ -280,7 +281,7 @@ function DeAdvancePositions()
 		Advanced[i].bAdvanced = false;
 	}
 	
-		
+
 	for ( i=0 ; i<iTrailer ; i++ )
 	{
 		if ( !Trailers[i].bAdvanced )
@@ -316,7 +317,9 @@ final function bool ValidAdvance( int i)
 }
 final function bool ValidTrailer( Actor Trailer)
 {
-	return Trailer != none && !Trailer.bDeleteMe && Trailer.Owner != none && !Trailer.Owner.bDeleteMe;
+	return (Trailer != none) && !Trailer.bDeleteMe
+		&& (Trailer.Physics == PHYS_Trailer)
+		&& (Trailer.Owner != none) && !Trailer.Owner.bDeleteMe;
 }
 
 //0 means pawns and projectiles

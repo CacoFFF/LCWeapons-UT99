@@ -388,6 +388,7 @@ Begin:
 	LCAdv = Spawn(class'XC_ElementAdvancer').Setup( self);
 	Spawn(class'XC_CProjSN').Setup( self, LCAdv);
 	Spawn(class'XC_CPawnSN').Setup( self, LCAdv);
+	Spawn(class'XC_CEffectsSN').Setup( self, LCAdv);
 	if ( LocalPlayer.IsA('bbPlayer') )
 		Spawn(class'LCWeaponHUD').LocalPlayer = LocalPlayer;
 FindClient:
