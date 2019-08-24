@@ -27,19 +27,6 @@ replication
 		FixOffset;
 }
 
-function inventory SpawnCopy( pawn Other )
-{
-	return Class'LCStatics'.static.SpawnCopy(Other,self);
-}
-function GiveTo( pawn Other )
-{
-	Class'LCStatics'.static.GiveTo(Other,self);
-}
-
-function SetSwitchPriority(pawn Other)
-{
-	Class'LCStatics'.static.SetSwitchPriority( Other, self, 'minigun2');
-}
 
 ////////////////////////////////
 //All of the unlagged code here
@@ -343,6 +330,32 @@ FastShoot:
 	Sleep( FastSleep);
 	GenerateBullet();
 	Goto('FastShoot');
+}
+
+
+
+//***********************************************************************
+// LCWeapons common interfaces
+//***********************************************************************
+function Inventory SpawnCopy( Pawn Other )
+{
+	return Class'LCStatics'.static.SpawnCopy( Other, self);
+}
+function GiveTo( Pawn Other )
+{
+	Class'LCStatics'.static.GiveTo(Other,self);
+}
+function SetSwitchPriority( Pawn Other)
+{
+	Class'LCStatics'.static.SetSwitchPriority( Other, self, 'minigun2');
+}
+simulated function float GetRange( out int ExtraFlags)
+{
+	return 10000;
+}
+simulated function vector GetStartTrace( out int ExtraFlags, vector X, vector Y, vector Z)
+{
+	return Owner.Location + CalcDrawOffset() + FireOffset.Y * Y + FireOffset.Z * Z;
 }
 
 

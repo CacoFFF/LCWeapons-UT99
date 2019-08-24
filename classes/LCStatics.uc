@@ -8,6 +8,7 @@ class LCStatics expands Object
 #exec OBJ LOAD FILE="LCPureUtil.u" PACKAGE=LCWeapons_0022
 #exec OBJ LOAD FILE="SiegeUtil_A.u" PACKAGE=LCWeapons_0022
 #exec OBJ LOAD FILE="TimerUtil.u" PACKAGE=LCWeapons_0022
+#exec OBJ LOAD FILE="LCExtraFuncs.u" PACKAGE=LCWeapons_0022
 
 const MULTIPLIER = 0x015a4e35;
 const INCREMENT = 1;
@@ -60,16 +61,53 @@ static final function SetTimerCounter( Actor Other, float NewCounter)
 	class'TimerUtil'.static.SetTimerCounter( Other, NewCounter);
 }
 
-//*****************
-//Swap two integers
-//*****************
-static function ffSwap( out private int U, out private int H)
+//*************************************************************
+//Use the util to call functions that exist in LCWeapons (only)
+//*************************************************************
+static final function float GetRange( Actor Other, out int ExtraFlags)
 {
-	local private int L;
+	return class'LCExtraFuncs'.static.GetRange( Other, ExtraFlags);
+}
+static final function vector GetStartTrace( Actor Other, out int ExtraFlags, vector X, vector Y, vector Z)
+{
+	return class'LCExtraFuncs'.static.GetStartTrace( Other, ExtraFlags, X, Y, Z);
+}
+
+//********************************
+//LC type weapon generic tracefire
+//********************************
+static final function ClientTraceFire( Weapon Weapon, XC_CompensatorChannel LCChan, optional float Accuracy)
+{
+	local PlayerPawn Shooter;
+	local vector X, Y, Z, HitLocation, HitNormal, StartTrace, EndTrace, HitOffset;
+	local Actor HitActor;
+	local rotator View;
+	local int CompressedView;
+	local int ExtraFlags, Seed;
+
+	Shooter = PlayerPawn( Weapon.Owner);
+	if ( Shooter == None )
+		return;
 	
-	L = U;
-	U = H;
-	H = L;
+	View = PlayerRot( Shooter);
+	CompressedView = CompressRotator(View);
+	GetAxes( View, X, Y, Z);
+
+	StartTrace = GetStartTrace( Weapon, ExtraFlags, X, Y, Z);
+	EndTrace = StartTrace + X * GetRange( Weapon, ExtraFlags);
+	if ( Accuracy > 0 )
+	{
+		Seed = Rand( 65536);
+		EndTrace += StaticAimError( Y, Z, Accuracy, Seed);
+		ExtraFlags = ExtraFlags | (Seed << 16);
+	}
+	
+	HitActor = ffTraceShot( HitLocation, HitNormal, EndTrace, StartTrace, Shooter);
+	Weapon.ProcessTraceHit( HitActor, HitLocation, HitNormal, X, Y, Z);
+	if ( HitActor != None )
+		HitOffset = HitLocation - HitActor.Location;
+
+	LCChan.ffSendHit( HitActor, Weapon, Weapon.Level.TimeSeconds, HitLocation, HitOffset, StartTrace, CompressedView, ExtraFlags, Accuracy);
 }
 
 
@@ -169,6 +207,17 @@ static final function Actor LCTrace( out vector HitLocation, out vector HitNorma
 	return None;
 }
 
+//*****************
+//Swap two integers
+//*****************
+static function ffSwap( out private int U, out private int H)
+{
+	local private int L;
+	
+	L = U;
+	U = H;
+	H = L;
+}
 
 //*********************************
 //Byte reversal in a simple integer

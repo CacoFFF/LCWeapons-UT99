@@ -17,30 +17,8 @@ replication
 		FixOffset;
 }
 
-function inventory SpawnCopy( pawn Other )
-{
-	return class'LCStatics'.static.SpawnCopy(Other,self);
-}
-function GiveTo( pawn Other )
-{
-	Class'LCStatics'.static.GiveTo(Other,self);
-}
 
-function SetSwitchPriority(pawn Other)
-{
-	local int i;
 
-	Class'LCStatics'.static.SetSwitchPriority( Other, self, 'Enforcer');
-	if ( PlayerPawn(Other) != None )
-	{
-		for ( i=0; i<50; i++)
-			if ( PlayerPawn(Other).WeaponPriority[i] == 'doubleenforcer' )
-			{
-				DoubleSwitchPriority = i;
-				return;
-			}
-	}	
-}
 
 ////////////////////////////////
 //All of the unlagged code here
@@ -331,6 +309,43 @@ function bool HandlePickupQuery( inventory Item )
 	}
 	return Super(TournamentWeapon).HandlePickupQuery(Item);
 }
+
+//***********************************************************************
+// LCWeapons common interfaces
+//***********************************************************************
+function Inventory SpawnCopy( Pawn Other )
+{
+	return Class'LCStatics'.static.SpawnCopy( Other, self);
+}
+function GiveTo( Pawn Other )
+{
+	Class'LCStatics'.static.GiveTo(Other,self);
+}
+function SetSwitchPriority( Pawn Other)
+{
+	local int i;
+	
+	Class'LCStatics'.static.SetSwitchPriority( Other, self, 'Enforcer');
+	if ( PlayerPawn(Other) != None )
+	{
+		for ( i=0; i<50; i++)
+			if ( PlayerPawn(Other).WeaponPriority[i] == 'doubleenforcer' )
+			{
+				DoubleSwitchPriority = i;
+				return;
+			}
+	}	
+}
+simulated function float GetRange( out int ExtraFlags)
+{
+	return 10000;
+}
+simulated function vector GetStartTrace( out int ExtraFlags, vector X, vector Y, vector Z)
+{
+	return Owner.Location + CalcDrawOffset() + FireOffset.X * X + FireOffset.Y * Y + FireOffset.Z * Z;
+}
+
+
 
 
 defaultproperties

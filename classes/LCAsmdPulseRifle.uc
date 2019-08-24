@@ -31,21 +31,6 @@ replication
 		bTeamColor;
 }
 
-function inventory SpawnCopy( pawn Other )
-{
-	return Class'LCStatics'.static.SpawnCopy(Other,self);
-}
-function GiveTo( pawn Other )
-{
-	Class'LCStatics'.static.GiveTo(Other,self);
-	if ( bTeamColor )
-		SetStaticSkins();
-}
-
-function SetSwitchPriority(pawn Other)
-{
-	Class'LCStatics'.static.SetSwitchPriority( Other, self, 'AsmdPulseRifle');
-}
 
 simulated event Spawned()
 {
@@ -649,6 +634,34 @@ simulated function SetStaticSkins()
 {
 	Class'FVTeamShock'.static.AsmdPR_SetStaticProj( self);
 }
+
+//***********************************************************************
+// LCWeapons common interfaces
+//***********************************************************************
+function Inventory SpawnCopy( Pawn Other )
+{
+	return Class'LCStatics'.static.SpawnCopy( Other, self);
+}
+function GiveTo( Pawn Other )
+{
+	Class'LCStatics'.static.GiveTo(Other,self);
+	if ( bTeamColor )
+		SetStaticSkins();
+}
+function SetSwitchPriority( Pawn Other)
+{
+	Class'LCStatics'.static.SetSwitchPriority( Other, self, 'AsmdPulseRifle');
+}
+simulated function float GetRange( out int ExtraFlags)
+{
+	return 10000;
+}
+simulated function vector GetStartTrace( out int ExtraFlags, vector X, vector Y, vector Z)
+{
+	return Owner.Location + CalcDrawOffset() + FireOffset.X * X + FireOffset.Y * Y + FireOffset.Z * Z;
+}
+
+
 
 
 defaultproperties

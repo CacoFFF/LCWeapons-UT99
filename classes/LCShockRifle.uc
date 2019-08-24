@@ -29,31 +29,13 @@ replication
 }
 
 
-
-function Inventory SpawnCopy( pawn Other )
-{
-	return Class'LCStatics'.static.SpawnCopy(Other,self);
-}
-
-function GiveTo( pawn Other )
-{
-	Class'LCStatics'.static.GiveTo(Other,self);
-	if ( bTeamColor )
-		SetStaticSkins();
-}
-
-function SetSwitchPriority(pawn Other)
-{
-	Class'LCStatics'.static.SetSwitchPriority( Other, self, 'ShockRifle');
-}
-
 simulated event KillCredit( Actor Other)
 {
 	if ( XC_CompensatorChannel(Other) != none )
 	{
 		LCChan = XC_CompensatorChannel(Other);
 		if ( LCChan.bDelayedFire )
-			ffTraceFire();
+			class'LCStatics'.static.ClientTraceFire( self, LCChan);
 		else if ( LCChan.bDelayedAltFire && (AltProjectileClass != none) )
 			ffSimProj(AltProjectileClass, AltProjectileClass.Default.Speed);
 	}
@@ -189,35 +171,7 @@ function TraceFire( float Accuracy )
 	ProcessTraceHit(Other, HitLocation, HitNormal, vector(AdjustedAim),Y,Z);
 }
 
-simulated function ffTraceFire()
-{
-	local private PlayerPawn ffP;
-	local private vector X,Y,Z, ffHitLocation, ffHitNormal, ffStartTrace, ffEndTrace;
-	local private actor ffOther;
-	local private rotator ffRot;
-
-	ffP = PlayerPawn(Owner);
-	if ( ffP == none )	return;
-	ffRot = class'LCStatics'.static.PlayerRot( ffP);
-	GetAxes( ffRot, X,Y,Z );
-	
-	ffStartTrace = ffP.Location + CalcDrawOffset() + FireOffset.Y * Y + FireOffset.Z * Z; 
-	ffEndTrace = ffStartTrace + 10000 * X; 
-
-	ffOther = Class'LCStatics'.static.ffTraceShot(ffHitLocation,ffHitNormal,ffEndTrace,ffStartTrace,ffP);
-	ProcessTraceHit( ffOther, ffHitLocation, ffHitNormal, X, Y, Z);
-	if ( (Pawn(ffOther) != none) && (Pawn(ffOther).PlayerReplicationInfo != none ) )
-		LCChan.ffSendHit( none, self, Pawn(ffOther).PlayerReplicationInfo.PlayerID, Level.TimeSeconds, ffHitLocation, ffHitLocation - ffOther.Location, ffStartTrace, class'LCStatics'.static.CompressRotator(ffRot), 3);
-	else
-	{
-		if ( ffOther == none )
-			LCChan.ffSendHit( ffOther, self, -1, Level.TimeSeconds, ffHitLocation, vect(0,0,0), ffStartTrace, class'LCStatics'.static.CompressRotator(ffRot), 3);
-		else
-			LCChan.ffSendHit( ffOther, self, -1, Level.TimeSeconds, ffHitLocation, ffHitLocation - ffOther.Location, ffStartTrace, class'LCStatics'.static.CompressRotator(ffRot), 3);
-	}
-}
-
-simulated function ProcessTraceHit(Actor Other, Vector HitLocation, Vector HitNormal, Vector X, Vector Y, Vector Z)
+simulated function ProcessTraceHit( Actor Other, Vector HitLocation, Vector HitNormal, Vector X, Vector Y, Vector Z)
 {
 	if (Other==None)
 	{
@@ -297,6 +251,37 @@ simulated function SetStaticSkins()
 {
 	Class'FVTeamShock'.static.SetStaticSkins( self);
 }
+
+
+//***********************************************************************
+// LCWeapons common interfaces
+//***********************************************************************
+function Inventory SpawnCopy( Pawn Other)
+{
+	return Class'LCStatics'.static.SpawnCopy( Other, self);
+}
+function GiveTo( Pawn Other)
+{
+	Class'LCStatics'.static.GiveTo( Other, self);
+	if ( bTeamColor )
+		SetStaticSkins();
+}
+
+function SetSwitchPriority( Pawn Other)
+{
+	Class'LCStatics'.static.SetSwitchPriority( Other, self, 'ShockRifle');
+}
+
+simulated function float GetRange( out int ExtraFlags)
+{
+	return 10000;
+}
+
+simulated function vector GetStartTrace( out int ExtraFlags, vector X, vector Y, vector Z)
+{
+	return Owner.Location + CalcDrawOffset() + FireOffset.Y * Y + FireOffset.Z * Z;
+}
+
 
 
 defaultproperties

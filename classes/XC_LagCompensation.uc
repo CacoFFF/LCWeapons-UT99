@@ -343,45 +343,6 @@ function float ffMaxLag()
 }
 //OBFEND
 
-function bool ValidateAccuracy( XC_CompensatorChannel LCChan, int CmpRot, vector Start, vector End, float Accuracy, int Flags, out byte Imprecise, out string Error)
-{
-	local vector aVec;
-	local pawn P;
-	local rotator FixedRot;
-	local float fDist;
-
-	P = Pawn(LCChan.Owner);
-	if ( Accuracy != 0 )
-	{
-		fDist = 10000;
-		if ( (Flags & 4) > 0 )			fDist += 10000;
-		if ( (Flags & 8) > 0 )			fDist += 20000;
-		aVec = ValidateEnd( Accuracy, fDist ,Flags >>> 16, class'LCStatics'.static.DecompressRotator(CmpRot));
-	}
-	else
-		aVec = Vector(class'LCStatics'.static.DecompressRotator(CmpRot));
-
-	if ( (VSize(End-Start) > 30) && (VSize( aVec - Normal(End-Start)) > 0.05) )
-	{
-		if ( (Imprecise > 0) || (VSize( aVec - Normal(End-Start)) > 0.20) )
-		{
-			Error = "DIRECTION DIFF IS :"$ VSize( aVec - Normal(End-Start));
-			return false;
-		}
-		Imprecise++;	
-	}
-
-	return true;
-}
-
-function vector ValidateEnd( float Accuracy, float MaxDist, int Seed, rotator Dir)
-{
-	local vector X,Y,Z;
-
-	GetAxes( Dir, X,Y,Z);
-	return Normal(X * MaxDist + class'LCStatics'.static.StaticAimError( Y, Z, Accuracy, Seed));
-}
-
 
 function vector WeaponStartTrace( Weapon W)
 {

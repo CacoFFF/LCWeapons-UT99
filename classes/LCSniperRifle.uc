@@ -20,19 +20,7 @@ replication
 		FixOffset;
 }
 
-function Inventory SpawnCopy( Pawn Other )
-{
-	return Class'LCStatics'.static.SpawnCopy(Other,self);
-}
-function GiveTo( pawn Other )
-{
-	Class'LCStatics'.static.GiveTo(Other,self);
-}
 
-function SetSwitchPriority( Pawn Other)
-{
-	Class'LCStatics'.static.SetSwitchPriority( Other, self, 'SniperRifle');
-}
 
 simulated function ModifyFireRate();
 
@@ -42,10 +30,7 @@ simulated event KillCredit( actor Other)
 	{
 		LCChan = XC_CompensatorChannel(Other);
 		if ( LCChan.bDelayedFire )
-		{
-			LCChan.bDelayedFire = false;
-			ffTraceFire(ffAimError);
-		}
+			class'LCStatics'.static.ClientTraceFire( self, LCChan, ffAimError);
 	}
 }
 
@@ -128,36 +113,6 @@ function TraceFire( float Accuracy )
 	ProcessTraceHit(Other, HitLocation, HitNormal, X,Y,Z);
 }
 
-
-simulated function ffTraceFire( optional float Accuracy)
-{
-	local private PlayerPawn ffP;
-	local private vector X,Y,Z, ffHitLocation, ffHitNormal, ffStartTrace, ffEndTrace;
-	local private actor ffOther;
-	local private rotator ffRot;
-	local int Seed;
-
-	ffP = PlayerPawn(Owner);
-	if ( ffP == none )	return;
-
-	ffRot = class'LCStatics'.static.PlayerRot( ffP);
-	GetAxes( ffRot, X,Y,Z );
-	
-	ffStartTrace = ffP.Location + ffP.Eyeheight * vect(0,0,1); 
-	ffEndTrace = ffStartTrace + 40000 * X; 
-	if ( Accuracy > 0 )
-	{
-		Seed = Rand( MaxInt) & 65535;
-		ffEndTrace += class'LCStatics'.static.StaticAimError( Y, Z, Accuracy, Seed);
-		Seed = Seed << 16;
-	}
-	ffOther = Class'LCStatics'.static.ffTraceShot(ffHitLocation,ffHitNormal,ffEndTrace,ffStartTrace,ffP);
-	ProcessTraceHit( ffOther, ffHitLocation, ffHitNormal, X, Y, Z);
-	if ( (Pawn(ffOther) != none) && (Pawn(ffOther).PlayerReplicationInfo != none ) )
-		LCChan.ffSendHit( none, self, Pawn(ffOther).PlayerReplicationInfo.PlayerID, Level.TimeSeconds, ffHitLocation, ffHitLocation - ffOther.Location, ffStartTrace, class'LCStatics'.static.CompressRotator(ffRot), 12 | Seed, Accuracy);
-	else
-		LCChan.ffSendHit( ffOther, self, -1, Level.TimeSeconds, ffHitLocation, ffHitLocation - ffOther.Location, ffStartTrace, class'LCStatics'.static.CompressRotator(ffRot), 12 | Seed, Accuracy);
-}
 
 simulated function ProcessTraceHit( Actor Other, Vector HitLocation, Vector HitNormal, Vector X, Vector Y, Vector Z)
 {
@@ -255,6 +210,30 @@ Begin:
 	PlayIdleAnim();
 }
 
+
+//***********************************************************************
+// LCWeapons common interfaces
+//***********************************************************************
+function Inventory SpawnCopy( Pawn Other )
+{
+	return Class'LCStatics'.static.SpawnCopy( Other, self);
+}
+function GiveTo( Pawn Other )
+{
+	Class'LCStatics'.static.GiveTo( Other, self);
+}
+function SetSwitchPriority( Pawn Other)
+{
+	Class'LCStatics'.static.SetSwitchPriority( Other, self, 'SniperRifle');
+}
+simulated function float GetRange( out int ExtraFlags)
+{
+	return 40000;
+}
+simulated function vector GetStartTrace( out int ExtraFlags, vector X, vector Y, vector Z)
+{
+	return Owner.Location + Pawn(Owner).Eyeheight * vect(0,0,1);
+}
 
 
 

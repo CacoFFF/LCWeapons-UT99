@@ -5,25 +5,17 @@ var XC_ImpactEvents ImpactEvents;
 var bool bFireRelease;
 var rotator BufferedDir;
 
+//ExtraFlags:
+// 0=primary manual
+// 1=primary auto
+// 2=alt
+
 replication
 {
 	reliable if ( Role == ROLE_Authority )
 		FixOffset;
 }
 
-function inventory SpawnCopy( pawn Other )
-{
-	return Class'LCStatics'.static.SpawnCopy(Other,self);
-}
-function GiveTo( pawn Other )
-{
-	Class'LCStatics'.static.GiveTo(Other,self);
-}
-
-function SetSwitchPriority(pawn Other)
-{
-	Class'LCStatics'.static.SetSwitchPriority( Other, self, 'ImpactHammer');
-}
 
 ////////////////////////////////
 //All of the unlagged code here
@@ -248,3 +240,29 @@ simulated function PlayerHitVel( vector Momentum)
 	if ( Owner.Physics == PHYS_Walking )
 		Owner.SetPhysics( PHYS_Falling);
 }
+
+
+//***********************************************************************
+// LCWeapons common interfaces
+//***********************************************************************
+function Inventory SpawnCopy( Pawn Other )
+{
+	return Class'LCStatics'.static.SpawnCopy( Other, self);
+}
+function GiveTo( Pawn Other )
+{
+	Class'LCStatics'.static.GiveTo(Other,self);
+}
+function SetSwitchPriority( Pawn Other)
+{
+	Class'LCStatics'.static.SetSwitchPriority( Other, self, 'ImpactHammer');
+}
+simulated function float GetRange( out int ExtraFlags)
+{
+	return 10000; //TODO: Update!
+}
+simulated function vector GetStartTrace( out int ExtraFlags, vector X, vector Y, vector Z)
+{
+	return Owner.Location + CalcDrawOffset() + FireOffset.Y * Y + FireOffset.Z * Z;
+}
+

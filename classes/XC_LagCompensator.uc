@@ -117,6 +117,18 @@ function ffCorrectTimes( private float ffDelta)
 }
 
 
+function bool ValidateWeapon( Weapon Weapon, out byte Imprecise)
+{
+	if ( Weapon == none || Weapon.bDeleteMe || ffOwner.Weapon != Weapon //Fixes a weapon toss exploit that allows teamkilling
+	|| Weapon.GetPropertyText("LCChan") == "" ) //Do not crash server 
+	{
+		Imprecise = 20;
+		return false;
+	}
+
+	return true;
+}
+
 function bool ValidatePlayerView( float ClientTimeStamp, vector StartTrace, int CmpRot, out byte Imprecise, out string Error)
 {
 	local rotator ClientView, ServerView;
@@ -193,6 +205,72 @@ function bool ValidatePlayerView( float ClientTimeStamp, vector StartTrace, int 
 	Imprecise -= 20; //Undo reject
 	return true;
 }
+
+function bool ValidateAccuracy( Weapon Weapon, int CmpRot, vector Start, vector End, float Accuracy, int Flags, out byte Imprecise, out string Error)
+{
+	local rotator View;
+	local vector X, Y, Z;
+
+	if ( Accuracy != float(Weapon.GetPropertyText("ffAimError")) ) //Weapon aim error mismatch
+	{
+		Error = "Aim error mismatch:"@Accuracy@"vs"@Weapon.GetPropertyText("ffAimError");
+		return false; //Delay
+	}
+	
+	View = class'LCStatics'.static.DecompressRotator( CmpRot);
+	GetAxes( View, X, Y, Z);
+	if ( Accuracy != 0 ) //Need to reprocess end point
+	{	
+		X = Normal( X * class'LCStatics'.static.GetRange( Weapon, Flags) 
+			+ class'LCStatics'.static.StaticAimError( Y, Z, Accuracy, Flags >>> 16) );
+	}
+
+	if ( (VSize(End-Start) > 30) && (VSize( X - Normal(End-Start)) > 0.05) )
+	{
+		if ( (Imprecise > 0) || (VSize( X - Normal(End-Start)) > 0.20) )
+		{
+			Imprecise = 20;
+			Error = "DIRECTION DIFF IS :"$ VSize( X - Normal(End-Start));
+			return false; //Reject
+		}
+		Imprecise++;	
+	}
+	return true;
+}
+
+function bool ValidateWeaponRange( Weapon Weapon, int ExtraFlags, vector StartTrace, vector HitLocation, int CmpRot, out byte Imprecise, out string Error)
+{
+	local rotator PlayerView;
+	local vector X, Y, Z;
+	local float Range;
+	local int NewExtraFlags;
+	local float YDist;
+	
+	NewExtraFlags = ExtraFlags;
+	Range      = class'LCStatics'.static.GetRange( Weapon, NewExtraFlags);
+	PlayerView = class'LCStatics'.static.DecompressRotator( CmpRot);
+	GetAxes( PlayerView, X, Y, Z);
+	YDist = ((HitLocation - StartTrace) dot X) - 1;
+	
+	if ( NewExtraFlags != ExtraFlags )
+	{
+		Imprecise = 20;
+		Error = "Bad range flags: ("$ExtraFlags$"/"$NewExtraFlags$")";
+		return false;
+	}
+	
+	if ( YDist <= Range )
+		return true;
+		
+	Imprecise += 1;
+	if ( YDist <= (Range * 0.01) )
+		return true;
+		
+	Imprecise = 20;
+	Error = "Bad weapon range: ("$int(YDist)$"/"$int(Range)$")";
+	return false;
+}
+
 
 function bool XC_ValidateOldView()
 {
