@@ -32,7 +32,6 @@ var bool bFakeSwitch;
 var bool bAlreadyProcessed; //Queue following shots
 var bool bSWChecked;
 var bool bNoBinds;
-var bool bReportReject;
 
 var XC_ClientSettings ClientSettings;
 
@@ -71,9 +70,9 @@ replication
 	reliable if ( Role == ROLE_Authority )
 		bUseLC, bSimAmmo, cAdv, ProjAdv, bSWChecked, ClientPredictCap;
 	reliable if ( Role == ROLE_Authority )
-		ffForceLC, ClientChangeLC, SetPendingW, ReceiveSWJumpPad, LockSWJumpPads, ClientChangePCap;
+		ForceLC, ClientChangeLC, SetPendingW, ReceiveSWJumpPad, LockSWJumpPads, ClientChangePCap;
 	reliable if ( Role < ROLE_Authority )
-		ffSetLC, ffSendHit, RequestSWJumpPads, RequestPCap;
+		SetLC, ffSendHit, RequestSWJumpPads, RequestPCap;
 }
 
 //Saves hit info, processes after movement physics occurs, do simplest of checks
@@ -81,19 +80,9 @@ replication
 //But another later ServerMove may arrive after this one
 function ffSendHit( Actor ffOther, Weapon Weap, float ffTime, vector ffHit, vector ffOff, vector ffStartTrace, int CmpRot, int ShootFlags, optional float ffAccuracy)
 {
-	local XC_LagCompensator LC;
-	
-	if ( ffISaved > 8 )
-		Pawn(Owner).ClientMessage("Saved shot list is full!");
-	
 	if ( ffISaved > 8 || !bUseLC 
 		|| (Weap == none) || (CurWeapon != Weap) || Weap.IsInState('DownWeapon') )
 		return;
-	if ( int(ffAccuracy != 0) + int((ShootFlags >>> 16) == 0) != 1 )
-	{
-		RejectShot("Accuracy("$ffAccuracy$") and ShootFlags("$ShootFlags$") inconsistency");
-		return;
-	}
 	if ( !LCComp.ffClassifyShot(ffTime) ) //Time classification failure
 		return;
 		
@@ -241,39 +230,17 @@ function bool ProcessHit( out ShotData Data)
 	return true;
 }
 
-function ffSetLC( bool bEnable)
-{
-	if ( bUseLC == bEnable )
-		ffForceLC( bEnable);
-	bUseLC = bEnable;
-}
-
-simulated function ClientFire( optional bool bAlt)
-{
-	local PlayerPawn Player;
-
-	if ( !bAlt ) bDelayedFire = true;
-	else         bDelayedAltFire = true;
-
-	Player = PlayerPawn(Owner);
-	if ( Player != None )
-	{
-		Player.ClientUpdateTime = 5; //FORCE
-	}
-}
+function ClientFire( optional bool bAlt);
 
 simulated event PostNetBeginPlay()
 {
 	if ( PlayerPawn(Owner) != none && ViewPort(PlayerPawn(Owner).Player) != none ) 
-		LocalPlayer = PlayerPawn(Owner);
-	else
 	{
-		GotoState('ClientNone');
-		return;
+		LocalPlayer = PlayerPawn(Owner);
+		GotoState('ClientOp');
 	}
-
-
-	GotoState('ClientOp');
+	else
+		GotoState('ClientNone');
 }
 
 simulated state ClientNone
@@ -287,7 +254,6 @@ Begin:
 	}
 	else
 		Goto('Begin');
-	
 }
 
 simulated state ClientOp
@@ -328,6 +294,13 @@ simulated state ClientOp
 			//*2 because weapon hasn't ticked, and we need to advance TWO frames instead of ONE
 			return (CurWeapon.AnimFrame < TopFrame) && (CurWeapon.AnimFrame + CurWeapon.AnimRate * DeltaTime * 2 >= TopFrame); 
 		}
+	}
+	simulated function ClientFire( optional bool bAlt)
+	{
+		if ( !bAlt ) bDelayedFire = true;
+		else         bDelayedAltFire = true;
+
+		LocalPlayer.ClientUpdateTime = 5; //FORCE
 	}
 	simulated event Tick( float DeltaTime)
 	{
@@ -399,7 +372,7 @@ FindClient:
 	CheckSWJumpPads();
 AdjustClient:
 	if ( ClientSettings.bUseLagCompensation != bUseLC ) //This will work on high packet loss environments
-		ffSetLC( ClientSettings.bUseLagCompensation);
+		SetLC( ClientSettings.bUseLagCompensation);
 	if ( ClientPredictCap != ClientSettings.ForcePredictionCap)
 	{
 		if ( FRand() < 0.1 ) //If server fails to replicate this, reset to 0 and restart again to cleanup replication with Packet loss
@@ -430,7 +403,6 @@ state ServerOp
 	{
 		local int i;
 		
-		bReportReject = true;
 		ProcessHitList();
 		if ( LCActor.bWeaponAnim )
 			cAdv = (float(LCComp.ffLastPing) / 1000) * Level.TimeDilation;
@@ -494,11 +466,23 @@ event Destroyed()
 		CurWeapon.SetPropertyText("LCChan","None");
 }
 
-simulated function ffForceLC( bool bEnable)
+
+/****************** LC State control
+ *
+ * SetLC          - Client internally forces LC state (loading config)
+ * ForceLC        - Server wants to override LC state on client (useful if client is wrong)
+ * ClientChangeLC - Client wants to change config using a Mutate command (causes SetLC after a while)
+*/
+function SetLC( bool bEnable)
+{
+	if ( bUseLC == bEnable )
+		ForceLC( bEnable);
+	bUseLC = bEnable;
+}
+simulated function ForceLC( bool bEnable)
 {
 	bUseLC = bEnable;
 }
-
 simulated function ClientChangeLC( bool bEnable)
 {
 	if ( ClientSettings != None )
@@ -507,6 +491,34 @@ simulated function ClientChangeLC( bool bEnable)
 		ClientSettings.SaveConfig();
 	}
 }
+
+/****************** Prediction cap control
+ *
+ * ChangePCap       - Client sent a mutate command to server to change pCap.
+ * ClientChangePCap - Server informs client of requested pCap change.
+ * RequestPCap      - Server wants to know client's pCap
+*/
+function ChangePCap( int NewPCap)
+{
+	ClientPredictCap = NewPCap;
+	ClientChangePCap( NewPCap);
+}
+function RequestPCap( int NewPCap)
+{
+	ClientPredictCap = NewPCap;
+}
+simulated function ClientChangePCap( int NewPCap)
+{
+	ClientPredictCap = NewPCap;
+	if ( ClientSettings != None )
+	{
+		ClientSettings.ForcePredictionCap = NewPCap;
+		ClientSettings.SaveConfig();
+	}
+}
+
+
+
 
 simulated function SetPendingW( weapon Other)
 {
@@ -560,32 +572,11 @@ simulated function CheckSWJumpPads()
 		RequestSWJumpPads();
 }
 
-function ChangePCap( int NewPCap)
-{
-	ClientPredictCap = NewPCap;
-	ClientChangePCap( NewPCap);
-}
-
-simulated function ClientChangePCap( int NewPCap)
-{
-	ClientPredictCap = NewPCap;
-	if ( ClientSettings != None )
-	{
-		ClientSettings.ForcePredictionCap = NewPCap;
-		ClientSettings.SaveConfig();
-	}
-}
-
 function RequestSWJumpPads()
 {
 	if ( bSWChecked )
 		return;
 	bSWChecked = true;
-}
-
-function RequestPCap( int NewPCap)
-{
-	ClientPredictCap = NewPCap;
 }
 
 simulated function ReceiveSWJumpPad( class<Teleporter> PadClass, string NewURL, name NewTag, float NewAngle, byte NewTeam, vector NewLoc, float CRadius, float CHeight)
@@ -621,12 +612,8 @@ simulated function LockSWJumpPads( class<Teleporter> PadClass)
 function RejectShot( coerce string Reason)
 {
 	Log( "LC Shot rejected: "$Reason,'LagCompensator');
-	if ( bReportReject )
-	{
-		bReportReject = false;
-		if ( PlayerPawn(Owner) != none )
-			PlayerPawn(Owner).ClientMessage( Reason);
-	}
+	if ( PlayerPawn(Owner) != none )
+		PlayerPawn(Owner).ClientMessage( Reason);
 }
 
 defaultproperties

@@ -37,9 +37,7 @@ struct XC_PlayerPos
 	var() float ExtraDist;
 };
 
-event PreBeginPlay() //Prevent destruction
-{
-}
+
 
 event Tick( private float ffDelta)
 {
@@ -55,7 +53,7 @@ event Tick( private float ffDelta)
 	if ( (PlayerPawn(ffOwner) != none) && FRand() < 0.4 )
 		ffLastPing = int(PlayerPawn(ffOwner).ConsoleCommand("GETPING"));
 
-	if ( Level.TimeSeconds - ffLastTimeSeconds > 0.5 * Level.TimeDilation ) //Frame took over 0.5 second!!! (game was paused)
+	if ( Level.TimeSeconds - ffLastTimeSeconds > 0.3 * Level.TimeDilation ) //Frame took over 0.3 second!!! (game was paused)
 		ffCorrectTimes( ffDelta);
 
 	ffLastTimeSeconds = Level.TimeSeconds;
@@ -268,10 +266,6 @@ function bool ValidateWeaponRange( Weapon Weapon, int ExtraFlags, vector StartTr
 	return false;
 }
 
-
-function bool XC_ValidateOldView()
-{
-}
 
 //Allow or deny hit
 function bool ffClassifyShot( private float ffClientTimeS)

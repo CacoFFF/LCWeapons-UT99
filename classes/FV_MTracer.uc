@@ -1,4 +1,4 @@
-class FV_WallHit expands UT_WallHit;
+class FV_MTracer expands MTracer;
 
 var bool bIsLC;
 
@@ -15,6 +15,7 @@ simulated event PostNetBeginPlay()
 		bHidden = true;
 		LightType = LT_None;
 		LifeSpan = 0.001;
+		SetPhysics( PHYS_None);
 		Disable('Tick');
 	}
 }

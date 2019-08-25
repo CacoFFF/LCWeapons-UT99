@@ -4,6 +4,7 @@ var XC_CompensatorChannel LCChan;
 var XC_ImpactEvents ImpactEvents;
 var bool bFireRelease;
 var rotator BufferedDir;
+var int ShootFlags;
 
 //ExtraFlags:
 // 0=primary manual
@@ -33,21 +34,41 @@ simulated function PlayPostSelect()
 		bCanClientFire = True;
 	Super.PlayPostSelect();
 }
-simulated function bool IsLC()
+
+
+simulated function PlayAltFiring()
 {
-	return (LCChan != none) && LCChan.bUseLC && (LCChan.Owner == Owner);
-}
-function SetHand (float hand)
-{
-	Super.SetHand(hand);
-	FixOffset(FireOffset.Y);
-}
-simulated function FixOffset (float Y)
-{
-	FireOffset.Y=Y;
+	if ( Owner != None )
+	{
+		Super.PlayAltFiring();
+		if ( Level.NetMode == NM_Client )
+		{
+			ShootFlags = 2;
+			SimTraceFire();
+		}
+	}
 }
 
 
+function Fire( float Value )
+{
+	bPointing = True;
+	bCanClientFire = true;
+	ClientFire(Value);
+	Pawn(Owner).PlayRecoil(FiringSpeed);
+	ShootFlags = 0;
+	GoToState('Firing');
+}
+function AltFire( float Value )
+{
+	bPointing = True;
+	bCanClientFire = true;
+	ClientAltFire(value);
+	Pawn(Owner).PlayRecoil(FiringSpeed);
+	ShootFlags = 2;
+	GoToState('AltFiring');
+	TraceFire(0);
+}
 
 
 
@@ -121,6 +142,7 @@ state ClientFiring
 {
 	simulated event BeginState()
 	{
+		ShootFlags = 0;
 		bFireRelease = false;
 	}
 	simulated function AnimEnd()
@@ -133,6 +155,7 @@ state ClientFiring
 	simulated event Tick( float DeltaTime)
 	{
 		local PlayerPawn P;
+
 		if ( !IsLC() )
 			return;
 
@@ -152,20 +175,23 @@ state ClientFiring
 
 simulated function SimTraceFire()
 {
-	local vector HitLocation, HitNormal, StartTrace, EndTrace, X, Y, Z;
-	local actor Other;
+	local vector HitLocation, HitNormal, StartTrace, EndTrace, X,Y,Z;
+	local Actor Other;
 
-	if ( Owner == none )
+	if ( Pawn(Owner) == none )
 		return;
-	GetAxes(Pawn(owner).ViewRotation, X, Y, Z);
-	StartTrace = Owner.Location + CalcDrawOffset() + FireOffset.Y * Y + FireOffset.Z * Z; 
-	EndTrace = StartTrace + 120.0 * X; 
+	GetAxes( Pawn(Owner).ViewRotation, X,Y,Z);
+	StartTrace = GetStartTrace( ShootFlags, X,Y,Z) ;
+	EndTrace = StartTrace + GetRange( ShootFlags) * X; 
 
 	Other = Class'LCStatics'.static.ffTraceShot(HitLocation,HitNormal,EndTrace,StartTrace,Pawn(Owner) );
-	ProcessTraceHit(Other, HitLocation, HitNormal, X, Y, Z);
+	ProcessTraceHit( Other, HitLocation, HitNormal, X,Y,Z);
+	
+	if ( ShootFlags == 2 )
+		AffectProjectiles( X,Y,Z);
 }
 
-function TraceFire(float accuracy)
+function TraceFire( float Accuracy)
 {
 	local vector HitLocation, HitNormal, StartTrace, EndTrace, X, Y, Z;
 	local Pawn PawnOwner;
@@ -174,12 +200,13 @@ function TraceFire(float accuracy)
 	PawnOwner = Pawn(Owner);
 	if ( PawnOwner == none )
 		return;
-	Owner.MakeNoise(PawnOwner.SoundDampening);
-	GetAxes(PawnOwner.ViewRotation, X, Y, Z);
+
+	Owner.MakeNoise( PawnOwner.SoundDampening);
+	GetAxes( PawnOwner.ViewRotation, X,Y,Z);
 	BufferedDir = PawnOwner.ViewRotation;
-	StartTrace = Owner.Location + CalcDrawOffset() + FireOffset.Y * Y + FireOffset.Z * Z; 
-	AdjustedAim = PawnOwner.AdjustAim(1000000, StartTrace, AimError, False, False);	
-	EndTrace = StartTrace + 120.0 * vector(AdjustedAim); 
+	StartTrace = GetStartTrace( ShootFlags, X,Y,Z); 
+	AdjustedAim = PawnOwner.AdjustAim( 1000000, StartTrace, AimError, False, False);	
+	EndTrace = StartTrace + GetRange( ShootFlags) * vector(AdjustedAim); 
 
 	if ( IsLC() )
 	{
@@ -190,40 +217,86 @@ function TraceFire(float accuracy)
 	else
 		Other = PawnOwner.TraceShot(HitLocation, HitNormal, EndTrace, StartTrace);
 	ProcessTraceHit(Other, HitLocation, HitNormal, vector(AdjustedAim), Y, Z);
+	
+	if ( ShootFlags == 2 )
+		AffectProjectiles( X,Y,Z);
+}
+
+simulated function AffectProjectiles( vector X, vector Y, vector Z)
+{
+	local Projectile P;
+	local float NewSpeed;
+	local vector NewVelocity;
+	
+	ForEach VisibleCollidingActors( class'Projectile', P, 550, Owner.Location)
+		if ( ((P.Physics == PHYS_Projectile) || (P.Physics == PHYS_Falling))
+			&& (Normal(P.Location - Owner.Location) Dot X) > 0.9 )
+		{
+			NewSpeed = VSize( P.Velocity);
+			if ( P.Velocity Dot Y > 0 )
+				NewVelocity = NewSpeed * Normal( P.Velocity + (750 - VSize(P.Location - Owner.Location)) * Y);
+			else	
+				NewVelocity = NewSpeed * Normal( P.Velocity - (750 - VSize(P.Location - Owner.Location)) * Y);
+			
+			if ( Level.NetMode == NM_Client )
+			{
+				//IMPLEMENT DELAYED AFFECTOR
+			}
+			else
+			{
+				P.Speed = NewSpeed;
+				P.Velocity = NewVelocity;
+			}
+		}
 }
 
 
-simulated function ProcessTraceHit(Actor Other, Vector HitLocation, Vector HitNormal, Vector X, Vector Y, Vector Z)
+simulated function ProcessTraceHit( Actor Other, Vector HitLocation, Vector HitNormal, Vector X, Vector Y, Vector Z)
 {
-	local bool bSpecialEff;
+	local Actor Effect;
+	local float Scale;
+	local bool bLevelHit;
+	local vector StartTrace;
 
 	if ( (Other == None) || (Other == Owner) || (Other == self) || (Owner == None))
 		return;
 
-	bSpecialEff = IsLC() && (Level.NetMode != NM_Client); //Spawn for LC clients
-
-	ChargeSize = FMin(ChargeSize, 1.5);
-	if ( (Other == Level) || Other.IsA('Mover') )
+	bLevelHit = (Other == Level) || Other.IsA('Mover');
+	StartTrace = GetStartTrace( ShootFlags, X,Y,Z);
+	
+	if ( ShootFlags == 2 ) //Alt fire
 	{
-		ChargeSize = FMax(ChargeSize, 1.0);
-		if ( VSize(HitLocation - Owner.Location) < 80 )
-		{
-			if ( bSpecialEff )	Spawn(class'ImpactMark',,, HitLocation+HitNormal, Rotator(HitNormal));
-			else				Spawn(class'LCImpactMark',Owner,, HitLocation+HitNormal, Rotator(HitNormal));
-		}
-		if ( Level.NetMode == NM_Client )
-			PlayerHitVel( -69000.0 * ChargeSize * X);
+		Scale = VSize( StartTrace - HitLocation) / GetRange(ShootFlags);
+		if ( bLevelHit )
+			Owner.TakeDamage( 24.0 * Scale, Pawn(Owner), HitLocation, -40000.0 * X * Scale, MyDamageType);
 		else
-			Owner.TakeDamage(36.0, Pawn(Owner), HitLocation, -69000.0 * ChargeSize * X, MyDamageType);
+			Other.TakeDamage( 20 * Scale, Pawn(Owner), HitLocation, 30000.0 * X * Scale, MyDamageType);
 	}
-	if ( Other != Level )
+	else //Normal fire
 	{
-		if ( Other.bIsPawn && (VSize(HitLocation - Owner.Location) > 90) )
-			return;
-		Other.TakeDamage(60.0 * ChargeSize, Pawn(Owner), HitLocation, 66000.0 * ChargeSize * X, MyDamageType);
-		if ( !Other.bIsPawn && !Other.IsA('Carcass') )
-			spawn(class'UT_SpriteSmokePuff',,,HitLocation+HitNormal*9);
+		ChargeSize = FMin(ChargeSize, 1.5);
+		if ( bLevelHit )
+		{
+			ChargeSize = FMax(ChargeSize, 1.0);
+			if ( VSize( HitLocation - StartTrace) < 80 )
+				Effect = Spawn( class'FV_ImpactMark',,, HitLocation+HitNormal, rotator(HitNormal));
+			if ( Level.NetMode == NM_Client )
+				PlayerHitVel( -69000.0 * ChargeSize * X);
+			else
+				Owner.TakeDamage( 36.0, Pawn(Owner), HitLocation, -69000.0 * ChargeSize * X, MyDamageType);
+		}
+		else
+		{
+			if ( Other.bIsPawn && (VSize(HitLocation - StartTrace) > 90) )
+				return;
+			Other.TakeDamage( 60.0 * ChargeSize, Pawn(Owner), HitLocation, 66000.0 * ChargeSize * X, MyDamageType);
+		}
 	}
+
+	//Common effect spawner
+	if ( !bLevelHit && !Other.bIsPawn && !Other.IsA('Carcass') )
+		Effect = Spawn(class'FV_SpriteSmokePuff',,,HitLocation+HitNormal*9);
+	class'LCStatics'.static.SetHiddenEffect( Effect, Owner, LCChan);
 }
 
 simulated function PlayerHitVel( vector Momentum)
@@ -232,11 +305,11 @@ simulated function PlayerHitVel( vector Momentum)
 		ImpactEvents = Spawn(class'XC_ImpactEvents');
 
 	if (Owner.Physics == PHYS_Walking)
-		momentum.Z = FMax(momentum.Z, 0.4 * VSize(momentum));
-	momentum = momentum * 0.6 / Owner.Mass;
+		Momentum.Z = FMax(Momentum.Z, 0.4 * VSize(Momentum));
+	Momentum = Momentum * 0.6 / Owner.Mass;
 
-	ImpactEvents.AddNewPush( momentum);
-	Owner.Velocity += momentum;
+	ImpactEvents.AddNewPush( Momentum);
+	Owner.Velocity += Momentum;
 	if ( Owner.Physics == PHYS_Walking )
 		Owner.SetPhysics( PHYS_Falling);
 }
@@ -259,10 +332,34 @@ function SetSwitchPriority( Pawn Other)
 }
 simulated function float GetRange( out int ExtraFlags)
 {
-	return 10000; //TODO: Update!
+	switch ( ExtraFlags )
+	{
+		case 0:  return 120; //Fire
+		case 1:  return 60;  //Auto Fire
+		case 2:  return 180; //Alt Fire
+		default: return 0;
+	}
 }
 simulated function vector GetStartTrace( out int ExtraFlags, vector X, vector Y, vector Z)
 {
-	return Owner.Location + CalcDrawOffset() + FireOffset.Y * Y + FireOffset.Z * Z;
+	local vector StartTrace;
+	
+	StartTrace = Owner.Location + CalcDrawOffset() + FireOffset.Y * Y + FireOffset.Z * Z;
+	if ( ExtraFlags == 1 || ExtraFlags == 2 )
+		StartTrace += FireOffset.X * X;
+	return StartTrace;
+}
+simulated function bool IsLC()
+{
+	return (LCChan != none) && LCChan.bUseLC && (LCChan.Owner == Owner);
+}
+function SetHand( float hand)
+{
+	Super.SetHand(hand);
+	FixOffset( FireOffset.Y);
+}
+simulated function FixOffset( float Y)
+{
+	FireOffset.Y = Y;
 }
 

@@ -4,8 +4,6 @@
 class LCSiegeInstaGibRifle expands TournamentWeapon;
 
 var() int HitDamage;
-var Projectile Tracked;
-var bool bBotSpecialMove;
 var float TapTime;
 
 var XC_CompensatorChannel LCChan;
@@ -75,86 +73,35 @@ simulated function PlayPostSelect()
 		bCanClientFire = True;
 	Super.PlayPostSelect();
 }
-function SetHand (float hand)
-{
-	Super.SetHand(hand);
-	FixOffset(FireOffset.Y);
-}
-simulated function FixOffset (float Y)
-{
-	FireOffset.Y=Y;
-}
 
-simulated function bool IsLC()
-{
-	return (LCChan != none) && LCChan.bUseLC && (LCChan.Owner == Owner);
-}
-
-function Fire( float Value )
-{
-	if (AmmoType.AmmoAmount > 0 )
-	{
-		GotoState('NormalFire');
-		bCanClientFire = true;
-		bPointing=True;
-		ClientFire(value);
-		AmmoType.UseAmmo(1);
-		if ( bRapidFire || (FiringSpeed > 0) )
-			Pawn(Owner).PlayRecoil(FiringSpeed);
-		if ( bInstantHit )
-			TraceFire(0.0);
-		else
-			ProjectileFire(ProjectileClass, ProjectileSpeed, bWarnTarget);
-	}
-}
 
 function AltFire( float Value )
 {
-	if (AmmoType.AmmoAmount > 0 )
-	{
-		GotoState('NormalFire');
-		bCanClientFire = true;
-		bPointing=True;
-		ClientFire(value);
-		AmmoType.UseAmmo(1);
-		if ( bRapidFire || (FiringSpeed > 0) )
-			Pawn(Owner).PlayRecoil(FiringSpeed);
-		if ( bInstantHit )
-			TraceFire(0.0);
-		else
-			ProjectileFire(ProjectileClass, ProjectileSpeed, bWarnTarget);
-	}
+	Fire( Value);
 }
 
 function TraceFire( float Accuracy )
 {
 	local vector HitLocation, HitNormal, StartTrace, EndTrace, X,Y,Z;
-	local actor Other;
+	local Actor Other;
+	local int ExtraFlags;
 
 	if ( IsLC() )
 		return;
 
 	Owner.MakeNoise(Pawn(Owner).SoundDampening);
 	GetAxes(Pawn(owner).ViewRotation,X,Y,Z);
-	StartTrace = Owner.Location + CalcDrawOffset() + FireOffset.Y * Y + FireOffset.Z * Z; 
-	EndTrace = StartTrace + Accuracy * (FRand() - 0.5 )* Y * 1000
+	StartTrace = GetStartTrace( ExtraFlags, X,Y,Z); 
+	AdjustedAim = Pawn(owner).AdjustAim( 1000000, StartTrace, 2.75*AimError, False, False);
+	X = vector(AdjustedAim);
+	EndTrace = StartTrace 
+		+ X * GetRange( ExtraFlags)
+		+ Accuracy * (FRand() - 0.5 ) * Y * 1000
 		+ Accuracy * (FRand() - 0.5 ) * Z * 1000 ;
 
-	if ( bBotSpecialMove && (Tracked != None)
-		&& (((Owner.Acceleration == vect(0,0,0)) && (VSize(Owner.Velocity) < 40)) ||
-			(Normal(Owner.Velocity) Dot Normal(Tracked.Velocity) > 0.95)) )
-		EndTrace += 10000 * Normal(Tracked.Location - StartTrace);
-	else
-	{
-		AdjustedAim = pawn(owner).AdjustAim(1000000, StartTrace, 2.75*AimError, False, False);	
-		EndTrace += (10000 * vector(AdjustedAim)); 
-	}
-
-	Tracked = None;
-	bBotSpecialMove = false;
 
 	Other = Pawn(Owner).TraceShot(HitLocation,HitNormal,EndTrace,StartTrace);
-	ProcessTraceHit(Other, HitLocation, HitNormal, vector(AdjustedAim),Y,Z);
+	ProcessTraceHit(Other, HitLocation, HitNormal, X,Y,Z);
 }
 
 simulated function PlayFiring()
@@ -213,43 +160,10 @@ function Finish()
 {
 	if ( (Pawn(Owner).bFire!=0) && (FRand() < 0.6) )
 		Timer();
-	if ( !bChangeWeapon && (Tracked != None) && !Tracked.bDeleteMe && (Owner != None) 
-		&& (Owner.IsA('Bot')) && (Pawn(Owner).Enemy != None) && (FRand() < 0.3 + 0.35 * Pawn(Owner).skill)
-		&& (AmmoType.AmmoAmount > 0) ) 
-	{
-		if ( (Owner.Acceleration == vect(0,0,0)) ||
-			(Abs(Normal(Owner.Velocity) dot Normal(Tracked.Velocity)) > 0.95) )
-		{
-			bBotSpecialMove = true;
-			GotoState('ComboMove');
-			return;
-		}
-	}
-
-	bBotSpecialMove = false;
-	Tracked = None;
 	Super.Finish();
 }
 
 ///////////////////////////////////////////////////////
-
-function Projectile ProjectileFire(class<projectile> ProjClass, float ProjSpeed, bool bWarn)
-{
-	local Vector Start, X,Y,Z;
-	local PlayerPawn PlayerOwner;
-
-	Owner.MakeNoise(Pawn(Owner).SoundDampening);
-	GetAxes(Pawn(owner).ViewRotation,X,Y,Z);
-	Start = Owner.Location + CalcDrawOffset() + FireOffset.X * X + FireOffset.Y * Y + FireOffset.Z * Z; 
-	AdjustedAim = pawn(owner).AdjustAim(ProjSpeed, Start, AimError, True, bWarn);	
-
-	PlayerOwner = PlayerPawn(Owner);
-	if ( PlayerOwner != None )
-		PlayerOwner.ClientInstantFlash( -0.4, vect(450, 190, 650));
-	Tracked = Spawn(ProjClass,,, Start,AdjustedAim);
-	if ( Level.Game.IsA('DeathMatchPlus') && DeathmatchPlus(Level.Game).bNoviceMode )
-		Tracked = None; //no combo move
-}
 
 simulated function ProcessTraceHit(Actor Other, Vector HitLocation, Vector HitNormal, Vector X, Vector Y, Vector Z)
 {
@@ -296,8 +210,6 @@ simulated function SpawnEffect(vector HitLocation, vector SmokeLocation)
 simulated function PlayAltFiring()
 {
 	PlayFiring();
-//	PlayOwnedSound(FireSound, SLOT_None, Pawn(Owner).SoundDampening*4.0);
-//	LoopAnim('Fire1', 0.20 + 0.20 * FireAdjust,0.05);
 }
 
 simulated function PlayIdleAnim()
@@ -392,23 +304,31 @@ function GiveTo( Pawn Other)
 {
 	Class'LCStatics'.static.GiveTo( Other, self);
 }
-
 function SetSwitchPriority( Pawn Other)
 {
 	Class'LCStatics'.static.SetSwitchPriority( Other, self, 'SiegeInstagibRifle');
 }
-
 simulated function float GetRange( out int ExtraFlags)
 {
 	return 10000;
 }
-
 simulated function vector GetStartTrace( out int ExtraFlags, vector X, vector Y, vector Z)
 {
 	return Owner.Location + CalcDrawOffset() + FireOffset.Y * Y + FireOffset.Z * Z;
 }
-
-
+simulated function bool IsLC()
+{
+	return (LCChan != none) && LCChan.bUseLC && (LCChan.Owner == Owner);
+}
+function SetHand( float hand)
+{
+	Super.SetHand(hand);
+	FixOffset( FireOffset.Y);
+}
+simulated function FixOffset( float Y)
+{
+	FireOffset.Y=Y;
+}
 
 
 defaultproperties

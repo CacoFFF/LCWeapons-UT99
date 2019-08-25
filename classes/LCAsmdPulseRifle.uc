@@ -94,14 +94,7 @@ simulated function PlayPostSelect()
 		SetStaticSkins();
 	Super.PlayPostSelect();
 }
-simulated function bool IsLC()
-{
-	return (LCChan != none) && LCChan.bUseLC && (LCChan.Owner == Owner);
-}
-simulated function FixOffset (float Y)
-{
-	FireOffset.Y=Y;
-}
+
 
 function TraceFire( float Accuracy )
 {
@@ -117,19 +110,21 @@ function TraceFire( float Accuracy )
 function ServerTraceFire( float Accuracy)
 {
 	local vector HitLocation, HitNormal, StartTrace, EndTrace, X,Y,Z;
-	local actor Other;
+	local Actor Other;
 	local Pawn PawnOwner;
+	local int ExtraFlags;
 
 	PawnOwner = Pawn(Owner);
 
 	GetAxes(PawnOwner.ViewRotation,X,Y,Z);
 	Owner.MakeNoise(PawnOwner.SoundDampening);
-	StartTrace = Owner.Location + CalcDrawOffset() + FireOffset.X * X + FireOffset.Y * Y + FireOffset.Z * Z; 
+	StartTrace = GetStartTrace( ExtraFlags, X,Y,Z); 
 	AdjustedAim = PawnOwner.AdjustAim(1000000, StartTrace, 2*AimError, False, False);	
-	EndTrace = StartTrace + Accuracy * (FRand() - 0.5 )* Y * 1000
-		+ Accuracy * (FRand() - 0.5 ) * Z * 1000;
 	X = vector(AdjustedAim);
-	EndTrace += (10000 * X); 
+	EndTrace = StartTrace 
+		+ X * GetRange( ExtraFlags)
+		+ Accuracy * (FRand() - 0.5 ) * Y * 1000
+		+ Accuracy * (FRand() - 0.5 ) * Z * 1000;
 
 	LCChan.LCActor.ffUnlagPositions( LCChan.LCComp, StartTrace, rotator(EndTrace-StartTrace) );
 	Other = class'LCStatics'.static.LCTrace( HitLocation, HitNormal, EndTrace, StartTrace, PawnOwner);
@@ -144,14 +139,15 @@ simulated function SimTraceFire()
 	local vector HitLocation, HitNormal, StartTrace, EndTrace, X,Y,Z;
 	local Actor Other;
 	local Pawn PawnOwner;
+	local int ExtraFlags;
 
 	PawnOwner = Pawn(Owner);
 	if ( (PawnOwner == none) || (Level.TimeSeconds - LastShot < 0.09) )
 		return;
 	GetAxes( class'LCStatics'.static.PlayerRot( PawnOwner), X,Y,Z);
 	LastShot = Level.TimeSeconds;
-	StartTrace = Owner.Location + CalcDrawOffset() + FireOffset.X * X + FireOffset.Y * Y + FireOffset.Z * Z; 
-	EndTrace = StartTrace + (10000 * X);
+	StartTrace = GetStartTrace( ExtraFlags, X,Y,Z);
+	EndTrace = StartTrace + X * GetRange( ExtraFlags);
 	Other = class'LCStatics'.static.ffTraceShot( HitLocation, HitNormal, EndTrace, StartTrace, PawnOwner);
 	SimProcessTraceHit( Other, HitLocation, HitNormal, X,Y,Z);
 }
@@ -215,30 +211,7 @@ simulated function AnimEnd()
 		PlayIdleAnim();
 	}
 }
-// set which hand is holding weapon
-function setHand(float Hand)
-{
-	if ( Hand == 2 )
-	{
-		FireOffset.Y = 0;
-		bHideWeapon = true;
-		return;
-	}
-	else
-		bHideWeapon = false;
-	PlayerViewOffset = Default.PlayerViewOffset * 100;
-	if ( Hand == 1 )
-	{
-		FireOffset.Y = Default.FireOffset.Y;
-		Mesh = mesh(DynamicLoadObject("Botpack.PulseGunL", class'Mesh'));
-	}
-	else
-	{
-		FireOffset.Y = -1 * Default.FireOffset.Y;
-		Mesh = mesh'PulseGunR';
-	}
-	FixOffset(FireOffset.Y);
-}
+
 
 // return delta to combat style
 function float SuggestAttackStyle()
@@ -660,8 +633,37 @@ simulated function vector GetStartTrace( out int ExtraFlags, vector X, vector Y,
 {
 	return Owner.Location + CalcDrawOffset() + FireOffset.X * X + FireOffset.Y * Y + FireOffset.Z * Z;
 }
-
-
+simulated function bool IsLC()
+{
+	return (LCChan != none) && LCChan.bUseLC && (LCChan.Owner == Owner);
+}
+function setHand( float Hand)
+{
+	if ( Hand == 2 )
+	{
+		FireOffset.Y = 0;
+		bHideWeapon = true;
+		return;
+	}
+	else
+		bHideWeapon = false;
+	PlayerViewOffset = Default.PlayerViewOffset * 100;
+	if ( Hand == 1 )
+	{
+		FireOffset.Y = Default.FireOffset.Y;
+		Mesh = mesh(DynamicLoadObject("Botpack.PulseGunL", class'Mesh'));
+	}
+	else
+	{
+		FireOffset.Y = -1 * Default.FireOffset.Y;
+		Mesh = mesh'PulseGunR';
+	}
+	FixOffset( FireOffset.Y);
+}
+simulated function FixOffset( float Y)
+{
+	FireOffset.Y = Y;
+}
 
 
 defaultproperties

@@ -67,22 +67,7 @@ simulated event RenderOverlays( canvas Canvas )
 		Super.RenderOverlays(Canvas);
 }
 
-function SetHand (float hand)
-{
-	Super.SetHand(hand);
-	FixOffset(FireOffset.Y);
-}
-simulated function FixOffset (float Y)
-{
-	FireOffset.Y=Y;
-}
 
-simulated function bool IsLC()
-{
-	if ( bNoAmmoDeplete && AmmoType != none )
-		AmmoType.AmmoAmount = AmmoType.MaxAmmo;
-	return (LCChan != none) && LCChan.bUseLC && (LCChan.Owner == Owner);
-}
 
 simulated function PlayFiring()
 {
@@ -142,26 +127,28 @@ simulated function Projectile ffSimProj( class<projectile> ProjClass, float Proj
 
 function TraceFire( float Accuracy )
 {
-	local vector HitLocation, HitNormal, StartTrace, EndTrace, X,Y,Z;
-	local actor Other;
-
+	local Actor Other;
+	local vector HitLocation, HitNormal, StartTrace, EndTrace, X, Y, Z;
+	local int ExtraFlags;
+	
 	if ( IsLC() )
 		return;
 
-	Owner.MakeNoise(Pawn(Owner).SoundDampening);
-	GetAxes(Pawn(owner).ViewRotation,X,Y,Z);
-	StartTrace = Owner.Location + CalcDrawOffset() + FireOffset.Y * Y + FireOffset.Z * Z; 
-	EndTrace = StartTrace + Accuracy * (FRand() - 0.5 )* Y * 1000
+	Owner.MakeNoise( Pawn(Owner).SoundDampening);
+	GetAxes( Pawn(Owner).ViewRotation, X,Y,Z);
+	StartTrace = GetStartTrace( ExtraFlags, X,Y,Z); 
+	EndTrace = StartTrace 
+		+ Accuracy * (FRand() - 0.5 ) * Y * 1000
 		+ Accuracy * (FRand() - 0.5 ) * Z * 1000 ;
 
 	if ( bBotSpecialMove && (Tracked != None)
 		&& (((Owner.Acceleration == vect(0,0,0)) && (VSize(Owner.Velocity) < 40)) ||
 			(Normal(Owner.Velocity) Dot Normal(Tracked.Velocity) > 0.95)) )
-		EndTrace += 10000 * Normal(Tracked.Location - StartTrace);
+		EndTrace += GetRange( ExtraFlags) * Normal(Tracked.Location - StartTrace);
 	else
 	{
-		AdjustedAim = pawn(owner).AdjustAim(1000000, StartTrace, 2.75*AimError, False, False);	
-		EndTrace += (10000 * vector(AdjustedAim)); 
+		AdjustedAim = Pawn(Owner).AdjustAim( 1000000, StartTrace, 2.75*AimError, False, False);	
+		EndTrace += (GetRange( ExtraFlags) * vector(AdjustedAim)); 
 	}
 
 	Tracked = None;
@@ -266,21 +253,34 @@ function GiveTo( Pawn Other)
 	if ( bTeamColor )
 		SetStaticSkins();
 }
-
 function SetSwitchPriority( Pawn Other)
 {
 	Class'LCStatics'.static.SetSwitchPriority( Other, self, 'ShockRifle');
 }
-
 simulated function float GetRange( out int ExtraFlags)
 {
 	return 10000;
 }
-
 simulated function vector GetStartTrace( out int ExtraFlags, vector X, vector Y, vector Z)
 {
 	return Owner.Location + CalcDrawOffset() + FireOffset.Y * Y + FireOffset.Z * Z;
 }
+simulated function bool IsLC()
+{
+	if ( bNoAmmoDeplete && AmmoType != none )
+		AmmoType.AmmoAmount = AmmoType.MaxAmmo;
+	return (LCChan != none) && LCChan.bUseLC && (LCChan.Owner == Owner);
+}
+function SetHand( float hand)
+{
+	Super.SetHand(hand);
+	FixOffset(FireOffset.Y);
+}
+simulated function FixOffset( float Y)
+{
+	FireOffset.Y = Y;
+}
+
 
 
 

@@ -336,7 +336,7 @@ static final function rotator AlphaRotation( rotator End, rotator Start, float A
 //**********************************************************************
 static final function SetHiddenEffect( Actor Effect, Actor Owner, XC_CompensatorChannel Channel)
 {
-	if ( (Channel != None) && (Channel.Level.NetMode != NM_Client) && Channel.bUseLC && (Effect != None) && (Channel.Owner == Owner) && (PlayerPawn(Owner) != None) )
+	if ( (Effect != None) && (Channel != None) && (Channel.Level.NetMode != NM_Client) && Channel.bUseLC && (Channel.Owner == Owner) && (PlayerPawn(Owner) != None) )
 	{
 		Effect.SetOwner( Owner);
 		Effect.SetPropertyText("bIsLC","1");

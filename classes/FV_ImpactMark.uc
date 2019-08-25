@@ -1,4 +1,4 @@
-class FV_WallHit expands UT_WallHit;
+class FV_ImpactMark expands ImpactMark;
 
 var bool bIsLC;
 

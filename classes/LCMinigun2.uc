@@ -47,42 +47,30 @@ simulated function PlayPostSelect()
 		bCanClientFire = True;
 	Super.PlayPostSelect();
 }
-simulated function bool IsLC()
-{
-	return (LCChan != none) && LCChan.bUseLC && (LCChan.Owner == Owner);
-}
-function SetHand (float hand)
-{
-	Super.SetHand(hand);
-	FixOffset(FireOffset.Y);
-}
-simulated function FixOffset (float Y)
-{
-	FireOffset.Y=Y;
-}
+
 
 
 //Serverside tracer
 function TraceFire( float Accuracy )
 {
-	local vector HitLocation, HitNormal, StartTrace, EndTrace, X,Y,Z, AimDir;
-	local actor Other;
-	local bool bIsLC;
+	local vector HitLocation, HitNormal, StartTrace, EndTrace, X,Y,Z;
+	local Actor Other, Tracer;
+	local int ExtraFlags;
 
 	if ( Owner == none )
 		return;
 
 	Owner.MakeNoise(Pawn(Owner).SoundDampening);
-	GetAxes(Pawn(owner).ViewRotation,X,Y,Z);
-	StartTrace = Owner.Location + CalcDrawOffset() + FireOffset.Y * Y + FireOffset.Z * Z; 
-	AdjustedAim = pawn(owner).AdjustAim(1000000, StartTrace, 2.75*AimError, False, False);	
-	EndTrace = StartTrace + Accuracy * (FRand() - 0.5 )* Y * 1000 + Accuracy * (FRand() - 0.5 ) * Z * 1000;
-	AimDir = vector(AdjustedAim);
-	EndTrace += (10000 * AimDir);
+	GetAxes( Pawn(owner).ViewRotation, X,Y,Z);
+	StartTrace = GetStartTrace( ExtraFlags, X,Y,Z); 
+	AdjustedAim = Pawn(Owner).AdjustAim( 1000000, StartTrace, 2.75*AimError, False, False);	
+	X = vector(AdjustedAim);
+	EndTrace = StartTrace
+		+ X * GetRange( ExtraFlags)
+		+ Accuracy * (FRand() - 0.5 ) * Y * 1000
+		+ Accuracy * (FRand() - 0.5 ) * Z * 1000;
 
-	bIsLC = IsLC();
-	
-	if ( bIsLC )
+	if ( IsLC() )
 	{
 		LCChan.LCActor.ffUnlagPositions( LCChan.LCComp, StartTrace, rotator(EndTrace-StartTrace) );
 		Other = class'LCStatics'.static.LCTrace( HitLocation, HitNormal, EndTrace, StartTrace, Pawn(Owner));
@@ -91,53 +79,43 @@ function TraceFire( float Accuracy )
 	else
 		Other = Pawn(Owner).TraceShot(HitLocation,HitNormal,EndTrace,StartTrace);
 
-	if ( bSpawnTracers )
+	if ( bSpawnTracers && (Count++ == 4) )
 	{
-		Count++;
-		if ( Count == 4 )
+		Count = 0;
+		if ( VSize(HitLocation - StartTrace) > 250 )
 		{
-			Count = 0;
-			if ( VSize(HitLocation - StartTrace) > 250 )
-			{
-				if ( bIsLC && LCChan.LCActor.bNeedsHiddenEffects )
-					Spawn(class'LCMTracer',Owner,, StartTrace + 96 * AimDir,rotator(EndTrace - StartTrace));
-				else
-					Spawn(class'MTracer',Owner,, StartTrace + 96 * AimDir,rotator(EndTrace - StartTrace)).SetPropertyText("bNotRelevantToOwner", string(bIsLC));
-			}
+			Tracer = Spawn( class'FV_MTracer',,, StartTrace + 96 * X, rotator( EndTrace-StartTrace));
+			class'LCStatics'.static.SetHiddenEffect( Tracer, Owner, LCChan);
 		}
 	}
 	ProcessTraceHit(Other, HitLocation, HitNormal, vector(AdjustedAim),Y,Z);
 }
 
-function ProcessTraceHit(Actor Other, Vector HitLocation, Vector HitNormal, Vector X, Vector Y, Vector Z)
+function ProcessTraceHit( Actor Other, Vector HitLocation, Vector HitNormal, Vector X, Vector Y, Vector Z)
 {
 	local int rndDam;
-	local Actor HitEffect;
-
-	if (Other == Level) 
-	{
-		HitEffect = Spawn( class'FV_LightWallHitEffect',,, HitLocation+HitNormal, Rotator(HitNormal));
-		class'LCStatics'.static.SetHiddenEffect( HitEffect, Owner, LCChan);
-	}
+	local Actor Effect;
+	
+	if ( Other == Level )
+		Effect = Spawn( class'FV_LightWallHitEffect',,, HitLocation+HitNormal, Rotator(HitNormal));
 	else if ( (Other!=self) && (Other!=Owner) && (Other != None) ) 
 	{
 		if ( !Other.bIsPawn && !Other.IsA('Carcass') )
-		{
-			HitEffect = Spawn( class'FV_SpriteSmokePuff',,, HitLocation+HitNormal*9);
-			class'LCStatics'.static.SetHiddenEffect( HitEffect, Owner, LCChan);
-		}
+			Effect = Spawn( class'FV_SpriteSmokePuff',,, HitLocation+HitNormal*9);
 		else
 			Other.PlaySound(Sound 'ChunkHit',, 4.0,,100);
 
 		if ( Other.IsA('Bot') && (FRand() < 0.2) )
 			Pawn(Other).WarnTarget(Pawn(Owner), 500, X);
+
 		rndDam = BaseDamage + Rand(RandomDamage);
 		if ( FRand() < 0.2 )
 			X *= 2.5;
 		else if ( (Pawn(Other) != None) && Pawn(Other).bIsPlayer )
 			X = vect(0,0,0); //Lockdown prevention on players
-		Other.TakeDamage(rndDam, Pawn(Owner), HitLocation, rndDam*500.0*X, MyDamageType);
+		Other.TakeDamage( rndDam, Pawn(Owner), HitLocation, rndDam*500.0*X, MyDamageType);
 	}
+	class'LCStatics'.static.SetHiddenEffect( Effect, Owner, LCChan);
 }
 
 
@@ -217,27 +195,26 @@ simulated function SimTraceFire( float Accuracy )
 {
 	local vector HitLocation, HitNormal, StartTrace, EndTrace, X,Y,Z;
 	local Actor Other;
+	local int ExtraFlags;
 
 	if ( Owner == none )
 		return;
 	GetAxes( class'LCStatics'.static.PlayerRot( Pawn(Owner)), X,Y,Z);
 
-	StartTrace = Owner.Location + CalcDrawOffset() + FireOffset.Y * Y + FireOffset.Z * Z;  //CALCDRAWOFFSET MIGHT SCREW UP THINGS
-	EndTrace = StartTrace + Accuracy * (FRand() - 0.5 )* Y * 1000 + Accuracy * (FRand() - 0.5 ) * Z * 1000;
-	EndTrace += (10000 * X);
+	StartTrace = GetStartTrace( ExtraFlags, X,Y,Z);
+	EndTrace = StartTrace
+		+ X * GetRange( ExtraFlags)
+		+ Accuracy * (FRand() - 0.5 ) * Y * 1000
+		+ Accuracy * (FRand() - 0.5 ) * Z * 1000;
 	Other = class'LCStatics'.static.ffTraceShot( HitLocation, HitNormal, EndTrace, StartTrace, Pawn(Owner));
-	if ( bSpawnTracers )
+	if ( bSpawnTracers && (Count++ == 4) )
 	{
-		Count++;
-		if ( Count == 4 )
-		{
-			Count = 0;
-			if ( VSize(HitLocation - StartTrace) > 250 )
-				Spawn(class'MTracer',,, StartTrace + 96 * X,rotator(EndTrace - StartTrace));
-		}
+		Count = 0;
+		if ( VSize(HitLocation - StartTrace) > 250 )
+			Spawn(class'FV_MTracer',,, StartTrace + 96 * X,rotator(EndTrace-StartTrace));
 	}
-	if ( Other == Level ) 
-		Spawn(class'UT_LightWallHitEffect',Owner,, HitLocation+HitNormal, Rotator(HitNormal));
+	if ( Other == Level )
+		Spawn(class'FV_LightWallHitEffect',,, HitLocation+HitNormal, Rotator(HitNormal));
 }
 
 
@@ -254,13 +231,17 @@ state NormalFire
 	}	
 	function Tick( float DeltaTime )
 	{
-		if (Owner==None) 
+		local Pawn Shooter;
+		
+		Shooter = Pawn(Owner);
+		if ( Shooter == None ) 
 		{
 			AmbientSound = None;
+			GotoState('Pickup');
 			return;
 		}
 
-		if ( Pawn(owner).PlayerReplicationInfo.bFeigningDeath )
+		if ( (Shooter.PlayerReplicationInfo != None) && Shooter.PlayerReplicationInfo.bFeigningDeath )
 		{
 			GotoState('FinishFire');
 			return;
@@ -300,20 +281,23 @@ state AltFiring
 	}	
 	function Tick( float DeltaTime )
 	{
-		if (Pawn(Owner)==None) 
+		local Pawn Shooter;
+		
+		Shooter = Pawn(Owner);
+		if ( Shooter == None ) 
 		{
 			AmbientSound = None;
 			GotoState('Pickup');
 			return;
 		}			
 
-		if ( bFiredShot && ((Pawn(Owner).bAltFire==0) || bOutOfAmmo) ) 
+		if ( bFiredShot && ((Shooter.bAltFire==0) || bOutOfAmmo) ) 
 		{
 			GoToState('FinishFire');
 			return;
 		}
 
-		if ( (Pawn(Owner).Weapon != none) && Pawn(Owner).PlayerReplicationInfo.bFeigningDeath )
+		if ( (Shooter.PlayerReplicationInfo != None) && Shooter.PlayerReplicationInfo.bFeigningDeath )
 		{
 			GotoState('FinishFire');
 			return;
@@ -376,6 +360,20 @@ simulated function vector GetStartTrace( out int ExtraFlags, vector X, vector Y,
 {
 	return Owner.Location + CalcDrawOffset() + FireOffset.Y * Y + FireOffset.Z * Z;
 }
+simulated function bool IsLC()
+{
+	return (LCChan != none) && LCChan.bUseLC && (LCChan.Owner == Owner);
+}
+function SetHand( float hand)
+{
+	Super.SetHand( hand);
+	FixOffset( FireOffset.Y);
+}
+simulated function FixOffset( float Y)
+{
+	FireOffset.Y = Y;
+}
+
 
 
 defaultproperties

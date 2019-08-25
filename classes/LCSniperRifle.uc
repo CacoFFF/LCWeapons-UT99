@@ -54,21 +54,7 @@ simulated function PlayPostSelect()
 }
 
 
-function SetHand( float hand)
-{
-	Super.SetHand(hand);
-	FixOffset(FireOffset.Y);
-}
 
-simulated function FixOffset( float Y)
-{
-	FireOffset.Y=Y;
-}
-
-simulated function bool IsLC()
-{
-	return (LCChan != none) && LCChan.bUseLC && (LCChan.Owner == Owner);
-}
 
 simulated function PlayFiring()
 {
@@ -87,30 +73,30 @@ simulated function PlayFiring()
 		LCChan.ClientFire();
 }
 
-//Modded for long range trace
 function TraceFire( float Accuracy )
 {
 	local vector HitLocation, HitNormal, StartTrace, EndTrace, X,Y,Z;
 	local Actor Other;
 	local Pawn PawnOwner;
+	local int ExtraFlags;
 
 	if ( IsLC() )
 		return;
 	if ( Accuracy == 0 )
-		Accuracy = ffAimError;
+		Accuracy += ffAimError;
 	PawnOwner = Pawn(Owner);
 
-	Owner.MakeNoise(PawnOwner.SoundDampening);
-	GetAxes(PawnOwner.ViewRotation,X,Y,Z);
-	StartTrace = Owner.Location + PawnOwner.Eyeheight * vect(0,0,1); 
-	AdjustedAim = PawnOwner.AdjustAim(1000000, StartTrace, 2*AimError, False, False);	
+	Owner.MakeNoise( PawnOwner.SoundDampening);
+	GetAxes( PawnOwner.ViewRotation,X,Y,Z);
+	StartTrace = GetStartTrace( ExtraFlags, X,Y,Z); 
+	AdjustedAim = PawnOwner.AdjustAim( 1000000, StartTrace, 2*AimError, False, False);	
 	X = vector(AdjustedAim);
-	EndTrace = StartTrace + 40000 * X; 
+	EndTrace = StartTrace + GetRange( ExtraFlags) * X; 
 	//Careful, take into account our trace is 40k units instead of 10k so scale up/down down all aim error and accuracy on subclasses
 	if ( Accuracy > 0 )
 		EndTrace += Accuracy * (FRand() - 0.5 )* Y * 1000 + Accuracy * (FRand() - 0.5 ) * Z * 1000;
-	Other = PawnOwner.TraceShot(HitLocation,HitNormal,EndTrace,StartTrace);
-	ProcessTraceHit(Other, HitLocation, HitNormal, X,Y,Z);
+	Other = PawnOwner.TraceShot( HitLocation, HitNormal, EndTrace, StartTrace);
+	ProcessTraceHit( Other, HitLocation, HitNormal, X,Y,Z);
 }
 
 
@@ -246,6 +232,20 @@ simulated function vector GetStartTrace( out int ExtraFlags, vector X, vector Y,
 {
 	return Owner.Location + Pawn(Owner).Eyeheight * vect(0,0,1);
 }
+simulated function bool IsLC()
+{
+	return (LCChan != none) && LCChan.bUseLC && (LCChan.Owner == Owner);
+}
+function SetHand( float hand)
+{
+	Super.SetHand(hand);
+	FixOffset(FireOffset.Y);
+}
+simulated function FixOffset( float Y)
+{
+	FireOffset.Y=Y;
+}
+
 
 
 
