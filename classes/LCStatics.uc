@@ -130,6 +130,8 @@ static final function Actor ffTraceShot( out vector HitLocation, out vector HitN
 			return A;
 		else if ( Pawn(A) != None )
 		{
+			if ( A == P )
+				continue;
 			OldEyeHeight = Pawn(A).EyeHeight;
 			OldBaseEyeHeight = Pawn(A).BaseEyeHeight;
 			if ( (A.Mesh != None) && A.HasAnim( A.AnimSequence) )
@@ -152,7 +154,7 @@ static final function Actor ffTraceShot( out vector HitLocation, out vector HitN
 			
 			Pawn(A).BaseEyeHeight = OldBaseEyeHeight;
 			Pawn(A).EyeHeight = OldEyeHeight;
-			if ( bHit && (A != P) ) //Safeguard
+			if ( bHit )
 				return A;
 		}
 		else if ( A.bProjTarget || (A.bBlockActors && A.bBlockPlayers) )
@@ -166,24 +168,42 @@ static final function Actor ffTraceShot( out vector HitLocation, out vector HitN
 //************************************
 //Server TraceShot for missed ZP shots
 //************************************
-static final function Actor ffIrrelevantShot(out vector ffHitLocation, out vector ffHitNormal, vector ffEndTrace, vector ffStartTrace, private Pawn ffTmp, private float ffPing)
+static final function Actor ffIrrelevantShot( out vector HitLocation, out vector HitNormal, vector EndTrace, vector StartTrace, PlayerPawn Player, float Ping)
 {
-	local private vector ffRealHit;
-	local private Actor ffOther;
+	local Actor A;
+	local float OldEyeHeight, OldBaseEyeHeight;
+	local bool bHit;
 
-	if ( ffTmp == none )
-		return none;
-	ForEach ffTmp.TraceActors( class'Actor', ffOther, ffHitLocation, ffHitNormal, ffEndTrace, ffStartTrace)
+	if ( Player == none )
+		return None;
+	ForEach Player.TraceActors( class'Actor', A, HitLocation, HitNormal, EndTrace, StartTrace)
 	{
-		if ( TraceStopper( ffOther) )
-			return ffOther;
-		if ( (!ffOther.bProjTarget && !ffOther.bBlockActors) || RelevantHitActor(ffOther, PlayerPawn(ffTmp), ffPing) ) //Non-solids or client hit actors ignored
-			continue;
-		if ( ffOther.bIsPawn && !Pawn(ffOther).AdjustHitLocation(ffHitLocation, ffEndTrace - ffStartTrace) )
-			continue;
-		return ffOther;
+		if ( TraceStopper( A) )
+			return A;
+		else if ( RelevantHitActor( A, Player, Ping) || (A == Player) ) //Ignore actors that are hittable via LC (prevent double hitscan on relevant actors)
+		{} //implicit continue
+		else if ( Pawn(A) != None )
+		{
+			OldEyeHeight = Pawn(A).EyeHeight;
+			OldBaseEyeHeight = Pawn(A).BaseEyeHeight;
+			if ( (A.Mesh != None) && A.HasAnim( A.AnimSequence) ) //Feigndeath doesn't need server adjustment
+				if ( (A.GetAnimGroup( A.AnimSequence) == 'Ducking') && (A.AnimFrame > -0.03) )
+				{
+					Pawn(A).BaseEyeHeight = Pawn(A).default.BaseEyeHeight * 0.1;
+					Pawn(A).EyeHeight = Pawn(A).BaseEyeHeight;
+				} 
+			bHit = Pawn(A).AdjustHitLocation( HitLocation, EndTrace - StartTrace); 
+			Pawn(A).BaseEyeHeight = OldBaseEyeHeight;
+			Pawn(A).EyeHeight = OldEyeHeight;
+			if ( bHit )
+				return A;
+		}
+		else if ( A.bProjTarget || (A.bBlockActors && A.bBlockPlayers) )
+			return A;
 	}
-	return none;
+	HitLocation = EndTrace;
+	HitNormal = Normal( StartTrace - EndTrace);
+	return None;
 }
 
 //*************************************
@@ -347,6 +367,8 @@ static final function bool IsLCWeapon( Weapon W)
 //*************************************************************
 static final function bool RelevantHitActor( Actor Other, optional PlayerPawn P, optional float Ping)
 {
+	if ( Other.RemoteRole == ROLE_None )
+		return false;
 	if ( Other.bIsPawn && (StationaryPawn(Other) == none) )
 		return true;
 	if ( Projectile(Other) != none )

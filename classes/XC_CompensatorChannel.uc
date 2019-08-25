@@ -3,8 +3,7 @@
 // This channel was made to prevent unwanted function calls
 // Keeps the log cleaner
 //************************************************************
-class XC_CompensatorChannel expands Info
-	config(LCWeapons);
+class XC_CompensatorChannel expands Info;
 
 var XC_LagCompensation LCActor;
 var XC_LagCompensator LCComp;
@@ -35,8 +34,8 @@ var bool bSWChecked;
 var bool bNoBinds;
 var bool bReportReject;
 
-var() config bool bUseLagCompensation;
-var() config int ForcePredictionCap;
+var XC_ClientSettings ClientSettings;
+
 
 // Shoot flags
 // 1 - Use PlayerCalcView
@@ -97,6 +96,10 @@ function ffSendHit( Actor ffOther, Weapon Weap, float ffTime, vector ffHit, vect
 	}
 	if ( !LCComp.ffClassifyShot(ffTime) ) //Time classification failure
 		return;
+		
+	//HACKALICIOUS, FORCE WEAPON ANIMATION TO UPDATE FIRING SPEED IN NYA RIFLE
+	if ( !Weap.IsAnimating() || (!Weap.bAnimLoop && Weap.AnimFrame >= AnimLast) )
+		Weap.PlayFiring();
 		
 	SavedShots[ffISaved].ffOther = ffOther;
 	SavedShots[ffISaved].Weap = Weap;
@@ -228,7 +231,7 @@ function bool ProcessHit( out ShotData Data)
 		EndTrace = Data.ffStartTrace + X * Range;
 		if ( Data.ffAccuracy != 0 )
 			EndTrace += class'LCStatics'.static.StaticAimError( Y, Z, Data.ffAccuracy, Data.ShootFlags >>> 16);
-		Data.ffOther = Class'LCStatics'.static.ffIrrelevantShot( Data.ffHit, Data.ffOff, EndTrace, Data.ffStartTrace, Pawn(Owner), CalcPing - ProjAdv );
+		Data.ffOther = Class'LCStatics'.static.ffIrrelevantShot( Data.ffHit, Data.ffOff, EndTrace, Data.ffStartTrace, PlayerPawn(Owner), CalcPing - ProjAdv );
 		Data.Weap.ProcessTraceHit( Data.ffOther, Data.ffHit, Data.ffOff, X, Y, Z);
 		return true;
 	}
@@ -293,6 +296,7 @@ simulated state ClientOp
 	{
 		local Teleporter T;
 		local ENetRole OldRole;
+		local Object TmpOuter;
 
 		//Fix ACE kick on preloaded swJumpPads
 		ForEach AllActors (class'Teleporter', T)
@@ -303,6 +307,12 @@ simulated state ClientOp
 				T.SetPropertyText("bTraceGround","0");
 				T.Role = OldRole;
 			}
+			
+		if ( ClientSettings == None )
+		{
+			TmpOuter = new( self, 'LCWeapons') class'Object';
+			ClientSettings = new( TmpOuter, 'Client') class'XC_ClientSettings';
+		}
 	}
 	simulated function bool AboutToFinishFire( float DeltaTime)
 	{
@@ -384,18 +394,18 @@ Begin:
 	if ( LocalPlayer.IsA('bbPlayer') )
 		Spawn(class'LCWeaponHUD').LocalPlayer = LocalPlayer;
 FindClient:
-	RequestPCap( ForcePredictionCap);
+	RequestPCap( ClientSettings.ForcePredictionCap);
 	Sleep(0.3); //Safer
 	CheckSWJumpPads();
 AdjustClient:
-	if ( bUseLagCompensation != bUseLC ) //This will work on high packet loss environments
-		ffSetLC( bUseLagCompensation);
-	if ( ClientPredictCap != ForcePredictionCap)
+	if ( ClientSettings.bUseLagCompensation != bUseLC ) //This will work on high packet loss environments
+		ffSetLC( ClientSettings.bUseLagCompensation);
+	if ( ClientPredictCap != ClientSettings.ForcePredictionCap)
 	{
 		if ( FRand() < 0.1 ) //If server fails to replicate this, reset to 0 and restart again to cleanup replication with Packet loss
 			RequestPCap( 0);
 		else
-			RequestPCap( ForcePredictionCap);
+			RequestPCap( ClientSettings.ForcePredictionCap);
 	}
 	Sleep(0.5);
 	Goto('AdjustClient');
@@ -491,8 +501,11 @@ simulated function ffForceLC( bool bEnable)
 
 simulated function ClientChangeLC( bool bEnable)
 {
-	bUseLagCompensation = bEnable;
-	SaveConfig();
+	if ( ClientSettings != None )
+	{
+		ClientSettings.bUseLagCompensation = bEnable;
+		ClientSettings.SaveConfig();
+	}
 }
 
 simulated function SetPendingW( weapon Other)
@@ -556,9 +569,11 @@ function ChangePCap( int NewPCap)
 simulated function ClientChangePCap( int NewPCap)
 {
 	ClientPredictCap = NewPCap;
-	ForcePredictionCap = NewPCap;
-	if ( LocalPlayer != none && ViewPort(LocalPlayer.Player) != none )
-		SaveConfig();
+	if ( ClientSettings != None )
+	{
+		ClientSettings.ForcePredictionCap = NewPCap;
+		ClientSettings.SaveConfig();
+	}
 }
 
 function RequestSWJumpPads()
@@ -622,7 +637,5 @@ defaultproperties
     NetUpdateFrequency=20
     RemoteRole=ROLE_SimulatedProxy
     bUseLC=True
-    bUseLagCompensation=True
-	ForcePredictionCap=-1
 	ClientPredictCap=-1
 }

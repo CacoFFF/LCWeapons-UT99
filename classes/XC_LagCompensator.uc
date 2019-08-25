@@ -4,9 +4,6 @@
 //=============================================================================
 class XC_LagCompensator expands Info;
 
-
-
-
 var XC_LagCompensation ffMaster;
 var XC_LagCompensator ffCompNext;
 var XC_CompensatorChannel CompChannel;

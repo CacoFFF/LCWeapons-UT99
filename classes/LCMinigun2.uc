@@ -18,6 +18,10 @@ var float SlowAccuracy;
 var float FastAccuracy;
 var float TIWCounter;
 
+var int BaseDamage;
+var int RandomDamage;
+
+
 replication
 {
 	reliable if ( bNetOwner && Role == ROLE_Authority )
@@ -127,11 +131,11 @@ function ProcessTraceHit(Actor Other, Vector HitLocation, Vector HitNormal, Vect
 
 		if ( Other.IsA('Bot') && (FRand() < 0.2) )
 			Pawn(Other).WarnTarget(Pawn(Owner), 500, X);
-		rndDam = 9 + Rand(6);
+		rndDam = BaseDamage + Rand(RandomDamage);
 		if ( FRand() < 0.2 )
 			X *= 2.5;
-		else
-			X = vect(0,0,0); //Lockdown prevention
+		else if ( (Pawn(Other) != None) && Pawn(Other).bIsPlayer )
+			X = vect(0,0,0); //Lockdown prevention on players
 		Other.TakeDamage(rndDam, Pawn(Owner), HitLocation, rndDam*500.0*X, MyDamageType);
 	}
 }
@@ -156,7 +160,8 @@ simulated state ClientAltFiring
 		if ( bOldB && (Pawn(Owner) != none) && (Pawn(Owner).bAltFire == 0) )
 		{
 			PlayUnwind();
-			GotoState('');
+			bSteadyFlash3rd = false;
+			GotoState('ClientFinish');
 		}
 	}
 Begin:
@@ -172,6 +177,20 @@ FastShoot:
 	bBulletNow = true;
 	Goto('FastShoot');
 }
+
+state ClientFinish
+{
+	simulated function bool ClientFire(float Value)
+	{
+		return false;
+	}
+
+	simulated function bool ClientAltFire(float Value)
+	{
+		return false;
+	}
+}
+
 
 //Doing this because ACE has bugs, problem is, tick happens 1 frame after bBulletNow is set!!!
 simulated event Tick( float DeltaTime)
@@ -368,4 +387,6 @@ defaultproperties
 	FastTIW=0.10
 	SlowAccuracy=0.2
 	FastAccuracy=0.75
+	BaseDamage=9
+	RandomDamage=6
 }

@@ -140,11 +140,10 @@ simulated function ProcessTraceHit( Actor Other, Vector HitLocation, Vector HitN
 			Other.PlaySound(Sound 'ChunkHit',, 4.0,,100);
 		if ( Level.NetMode != NM_Client )
 		{
-			if ( Other.bIsPawn && (HitLocation.Z - Other.Location.Z > HeadshotHeight(Pawn(Other)) ) 
-				&& (instigator.IsA('PlayerPawn') || (instigator.IsA('Bot') && !Bot(Instigator).bNovice)) )
-				Other.TakeDamage(HeadshotDamage, Pawn(Owner), HitLocation, 35000 * X, AltDamageType);
+			if ( Other.bIsPawn && CanHeadshot(Instigator) && (HitLocation.Z - Other.Location.Z > HeadshotHeight(Pawn(Other))) )
+				Other.TakeDamage(HeadshotDamage, Pawn(Owner), HitLocation, 35000.0*X, AltDamageType);
 			else
-				Other.TakeDamage(NormalDamage,  Pawn(Owner), HitLocation, 30000.0*X, MyDamageType);	
+				Other.TakeDamage(NormalDamage, Pawn(Owner), HitLocation, 30000.0*X, MyDamageType);	
 		}
 		else if ( Other.bIsPawn && class'LCStatics'.static.RelevantHitActor( Other, PlayerPawn(Owner)) && (Pawn(Other).PlayerReplicationInfo == none || Pawn(Other).PlayerReplicationInfo.Team != Pawn(Owner).PlayerReplicationInfo.Team) )
 		{
@@ -157,6 +156,19 @@ simulated function ProcessTraceHit( Actor Other, Vector HitLocation, Vector HitN
 			class'LCStatics'.static.SetHiddenEffect( HitEffect, Owner, LCChan);
 		}
 	}
+}
+
+static function bool CanHeadshot( Pawn Shooter)
+{
+	if ( Shooter != None )
+	{
+		if ( Bot(Shooter) != None )
+			return !Bot(Shooter).bNovice;
+		else if ( PlayerPawn(Shooter) != None )
+			return true;
+		return (Shooter.PlayerReplicationInfo != None) && Shooter.bIsPlayer;
+	}
+	return false;
 }
 
 //Screw this shit

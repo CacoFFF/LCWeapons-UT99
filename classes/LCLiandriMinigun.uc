@@ -60,15 +60,14 @@ simulated function InitGraphics()
 function ProcessTraceHit(Actor Other, Vector HitLocation, Vector HitNormal, Vector X, Vector Y, Vector Z)
 {
 	local int rndDam;
+	local Actor Effect;
 
 	if ( PlayerPawn(Owner) != None )
 		PlayerPawn(Owner).ShakeView(ShakeTime, ShakeMag, ShakeVert);
   	if (Other == Level) 
 	{
-		if ( IsLC() )
-			Spawn(class'LC_spexp',Owner,, HitLocation+HitNormal*9, Rotator(HitNormal)).SetPropertyText("bNotRelevantToOwner","1");
-		else
-			Spawn(class'LC_spexp',,, HitLocation+HitNormal*9, Rotator(HitNormal));
+		Effect = Spawn( class'FV_spexp', Owner,, HitLocation + HitNormal * 9, Rotator(HitNormal));
+		class'LCStatics'.static.SetHiddenEffect( Effect, Owner, LCChan);
 	}
 	else if ( (Other!=self) && (Other!=Owner) && (Other != None) ) 
 	{
@@ -95,7 +94,7 @@ simulated function SimTraceFire( float Accuracy )
 	EndTrace += (10000 * X); 
 	Other = class'LCStatics'.static.ffTraceShot( HitLocation, HitNormal, EndTrace, StartTrace, Pawn(Owner));
 	if (Other == Level) 
-		Spawn(class'LC_spexp',,, HitLocation+HitNormal*9, Rotator(HitNormal));
+		Spawn( class'FV_spexp',,, HitLocation + HitNormal * 9, Rotator(HitNormal));
 }
 
 

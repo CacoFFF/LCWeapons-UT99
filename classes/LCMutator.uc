@@ -146,6 +146,7 @@ function int LCReplacement( Actor Other)
 	{
 		if ( W.Class == class'minigun2' )			return DoReplace(W,class'LCMinigun2');
 		else if ( W.IsA('Minigun_2x') )				return DoReplace(W,class'LCMinigun2',,,true);
+		else if ( W.IsA('BP_Minigun') )				return DoReplace(W,class'LCBP_Minigun',class'LCClassLoader');
 		else if ( W.IsA('sgMinigun') )				return SiegeMini(W);
 	}
 	else if ( W.default.Mesh == LodMesh'UnrealI.minipick' )	//This is an old minigun!
