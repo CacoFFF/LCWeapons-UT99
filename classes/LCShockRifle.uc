@@ -89,6 +89,21 @@ simulated function PlayAltFiring()
 		LCChan.ClientFire(true);
 }
 
+
+state ClientFiring
+{
+	simulated function bool ClientFire(float Value)
+	{
+		return false;
+	}
+
+	simulated function bool ClientAltFire(float Value)
+	{
+		return false;
+	}
+}
+
+
 function Projectile ProjectileFire( class<Projectile> ProjClass, float ProjSpeed, bool bWarn)
 {
 	local Projectile P;

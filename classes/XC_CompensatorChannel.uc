@@ -14,6 +14,8 @@ var float cAdv;
 var float pwChain;
 var float ProjAdv;
 
+var float CounterHiFi;
+
 var Weapon CurWeapon, CurPendingWeapon;
 var float PendingWeaponAnimAdjust;
 var float PendingWeaponCountdown;
@@ -32,7 +34,7 @@ var bool bDelayedFire;
 var bool bDelayedAltFire;
 var bool bLogTick;
 var bool bJustSwitched;
-var bool bAlreadyProcessed; //Queue following shots
+var bool bHitProcDone; //One proc per Tick
 var bool bSWChecked;
 var bool bNoBinds;
 
@@ -73,7 +75,8 @@ replication
 	reliable if ( Role == ROLE_Authority )
 		bUseLC, bSimAmmo, cAdv, ProjAdv, bSWChecked, ClientPredictCap;
 	reliable if ( Role == ROLE_Authority )
-		ForceLC, ClientChangeLC, ClientSetPendingWeapon, ClientSetFireOffsetY, ReceiveSWJumpPad, LockSWJumpPads, ClientChangePCap;
+		ForceLC, ClientSetPendingWeapon, ClientSetFireOffsetY, ReceiveSWJumpPad, LockSWJumpPads, 
+		ClientChangeLC, ClientChangePCap, ClientChangeHiFi;
 	reliable if ( Role < ROLE_Authority )
 		SetLC, ffSendHit, RequestSWJumpPads, RequestPCap;
 }
@@ -91,7 +94,7 @@ function ffSendHit( Actor ffOther, Weapon Weap, float ffTime, vector ffHit, vect
 	if ( !Weap.IsAnimating() || (Weap.IsInState('NormalFire') && !Weap.bAnimLoop && Weap.AnimFrame >= Weap.AnimLast) )
 	{
 //		Log("Hackalicious"); //Not occuring! Fix
-		Weap.PlayFiring();
+		Weap.Fire(0);
 	}
 		
 	if ( !LCComp.ffClassifyShot(ffTime) ) //Time classification failure
@@ -111,14 +114,11 @@ function ffSendHit( Actor ffOther, Weapon Weap, float ffTime, vector ffHit, vect
 	SavedShots[ffISaved].bRangeValidated = false;
 	SavedShots[ffISaved].bRegisteredFire = false;
 	SavedShots[ffISaved].Imprecise = byte(LCComp.ImpreciseTimer > 0);
-	SavedShots[ffISaved].MaxTimeStamp = Level.TimeSeconds + Level.TimeDilation * 0.25;
+	SavedShots[ffISaved].MaxTimeStamp = Level.TimeSeconds + Level.TimeDilation * 0.3;
+	SavedShots[ffISaved].Error = "";
 	ffISaved++;
 	
-	if ( !bAlreadyProcessed )
-	{
-		ProcessHitList();
-		bAlreadyProcessed = true;
-	}
+	ProcessHitList();
 }
 
 function ProcessHitList()
@@ -126,7 +126,7 @@ function ProcessHitList()
 	local int i;
 	local ShotData EmptyData;
 	
-	if ( PlayerPawn(Owner) == None )
+	if ( (PlayerPawn(Owner) == None) || bHitProcDone )
 		return;
 	
 	if ( Pawn(Owner).Weapon != None )
@@ -144,6 +144,8 @@ function ProcessHitList()
 				Goto REMOVE_FROM_LIST;
 		}
 		i++;
+		continue;
+		
 	REMOVE_FROM_LIST:
 		if ( SavedShots[i].Error != "" )
 			RejectShot("Shot rejected: "@SavedShots[i].Error);
@@ -151,7 +153,7 @@ function ProcessHitList()
 			SavedShots[i] = SavedShots[ffISaved];
 		SavedShots[ffISaved] = EmptyData;
 	}
-	bAlreadyProcessed = false;
+	bHitProcDone = true;
 }
 
 
@@ -168,6 +170,9 @@ function bool ProcessHit( out ShotData Data)
 	if ( !LCComp.ValidateWeapon( Data.Weap, Data.Imprecise) )
 		return false;
 
+//	if ( Data.bPlayerValidated || Data.bRangeValidated )
+//		Log("Rechecking shot"@Level.TimeSeconds);
+		
 	//Validate the player's view and shoot position, must be done only once
 	if ( !Data.bPlayerValidated )
 	{
@@ -287,21 +292,6 @@ simulated state ClientOp
 			ClientSettings = new( TmpOuter, 'Client') class'XC_ClientSettings';
 		}
 	}
-	simulated function bool AboutToFinishFire( float DeltaTime)
-	{
-		local float TopFrame;
-		if ( CurWeapon != None
-			&& !CurWeapon.bRapidFire
-			&& CurWeapon.IsAnimating() )
-		{
-			if ( CurWeapon.AnimLast == 0 ) 
-				TopFrame = 1;
-			else
-				TopFrame = Abs(CurWeapon.AnimLast);
-			//*2 because weapon hasn't ticked, and we need to advance TWO frames instead of ONE
-			return (CurWeapon.AnimFrame < TopFrame) && (CurWeapon.AnimFrame + CurWeapon.AnimRate * DeltaTime * 2 >= TopFrame); 
-		}
-	}
 	simulated function ClientFire( optional bool bAlt)
 	{
 		if ( !bAlt ) bDelayedFire = true;
@@ -339,10 +329,7 @@ simulated state ClientOp
 			CurWeapon.KillCredit( self);
 			bDelayedAltFire = false;
 		}
-		if ( AboutToFinishFire(DeltaTime) ) //FORCE UPDATE
-		{
-			LocalPlayer.ClientUpdateTime = 5; 
-		}
+		ProcessHiFi( DeltaTime);
 	}
 Begin:
 	Spawn(class'LCBindScanner').bNoBinds = bNoBinds;
@@ -401,6 +388,8 @@ state ServerOp
 		}
 		
 		ProcessHitList();
+		bHitProcDone = false;
+		
 		if ( LCActor.bWeaponAnim )
 			cAdv = (float(LCComp.ffLastPing) / 1000) * Level.TimeDilation;
 
@@ -528,6 +517,51 @@ simulated function ClientChangePCap( int NewPCap)
 		ClientSettings.ForcePredictionCap = NewPCap;
 		ClientSettings.SaveConfig();
 	}
+}
+
+/****************** High Fidelity Mode control
+ *
+ * ChangeHiFi       - Client sent a mutate command to server to change HiFi.
+ * ClientChangePCap - Server informs client of requested pCap change.
+ * ProcessHiFi      - Main proc, ensures 60hz client movement update and change in firing states.
+*/
+function ChangeHiFi( bool bEnable)
+{
+	ClientChangeHiFi( bEnable);
+}
+simulated function ClientChangeHiFi( bool bEnable)
+{
+	if ( ClientSettings != None )
+	{
+		ClientSettings.bHighFidelityMode = bEnable;
+		ClientSettings.SaveConfig();
+	}
+}
+
+simulated function ProcessHiFi( float DeltaTime)
+{
+	local float AnimTime;
+	
+	//Force update if weapon is about to re-fire
+	if ( CurWeapon != None && !CurWeapon.bRapidFire && CurWeapon.IsAnimating() )
+	{
+		AnimTime = class'LCStatics'.static.AnimationTimeRemaining( CurWeapon);
+		if ( CurWeapon.bTicked != bTicked ) //If weapon hasn't ticked, we need to check TWO frames ahead
+			AnimTime -= DeltaTime;
+		if ( (AnimTime > 0) && (AnimTime <= DeltaTime) ) 
+			LocalPlayer.ClientUpdateTime = 5;
+	}
+
+	//High fidelity mode forces up to 120 updates per second on client (as opposed to max 90)
+	if ( ClientSettings != None && ClientSettings.bHighFidelityMode )
+	{
+		CounterHiFi = fClamp( CounterHiFi + DeltaTime/Level.TimeDilation, -0.1, 0.1);
+		if ( LocalPlayer.PendingMove == None )
+			CounterHiFi -= 1.0 / 120.0;
+		if ( CounterHiFi >= 0 )
+			LocalPlayer.ClientUpdateTime = 5;
+	}
+	
 }
 
 
@@ -661,8 +695,6 @@ simulated function AdvanceWeaponAnim( Weapon Other)
 		}
 	}
 }
-
-
 
 
 simulated function CheckSWJumpPads()

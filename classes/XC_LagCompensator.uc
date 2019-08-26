@@ -4,6 +4,8 @@
 //=============================================================================
 class XC_LagCompensator expands Info;
 
+const LCS = class'LCStatics';
+
 var XC_LagCompensation ffMaster;
 var XC_LagCompensator ffCompNext;
 var XC_CompensatorChannel CompChannel;
@@ -134,7 +136,7 @@ function bool ValidatePlayerView( float ClientTimeStamp, vector StartTrace, int 
 	
 	Player = PlayerPawn(ffOwner);
 	PlayerPos = Player.Location;
-	ClientView = class'LCStatics'.static.DecompressRotator( CmpRot);
+	ClientView = LCS.static.DecompressRotator( CmpRot);
 	ServerView = Player.ViewRotation;
 	if ( ClientTimeStamp > Player.CurrentTimeStamp ) //Wait
 		return false;
@@ -145,16 +147,16 @@ function bool ValidatePlayerView( float ClientTimeStamp, vector StartTrace, int 
 	{
 		bApproximateView = true;
 		alpha = (ClientTimeStamp-CompChannel.OldTimeStamp)/(Player.CurrentTimeStamp-CompChannel.OldTimeStamp);
-		ServerView = class'LCStatics'.static.AlphaRotation( ServerView, CompChannel.OldView, alpha );
+		ServerView = LCS.static.AlphaRotation( ServerView, CompChannel.OldView, alpha );
 		PlayerPos = CompChannel.OldPosition + (Player.Location - CompChannel.OldPosition) * alpha;
 	}
 	
 	//Validate view
 	if ( bApproximateView )
 	{
-		if ( class'LCStatics'.static.CompareRotation( ServerView, ClientView) ) //Perfect match (stationary view)
+		if ( LCS.static.CompareRotation( ServerView, ClientView) ) //Perfect match (stationary view)
 		{}
-		else if ( class'LCStatics'.static.ContainsRotator( ClientView, Player.ViewRotation, CompChannel.OldView, 0.5) ) //Contained in move area
+		else if ( LCS.static.ContainsRotator( ClientView, Player.ViewRotation, CompChannel.OldView, 0.5) ) //Contained in move area
 			Imprecise++;
 		else
 		{
@@ -162,7 +164,7 @@ function bool ValidatePlayerView( float ClientTimeStamp, vector StartTrace, int 
 			return false;
 		}
 	}
-	else if ( !class'LCStatics'.static.CompareRotation( ServerView, ClientView) )
+	else if ( !LCS.static.CompareRotation( ServerView, ClientView) )
 	{
 		Error = "ROTATION MISMATCH"@ServerView@ClientView;
 		return false;
@@ -212,12 +214,12 @@ function bool ValidateAccuracy( Weapon Weapon, int CmpRot, vector Start, vector 
 		return false; //Delay
 	}
 	
-	View = class'LCStatics'.static.DecompressRotator( CmpRot);
-	GetAxes( View, X, Y, Z);
+	View = LCS.static.DecompressRotator( CmpRot);
+	GetAxes( View, X,Y,Z);
 	if ( Accuracy != 0 ) //Need to reprocess end point
 	{	
-		X = Normal( X * class'LCStatics'.static.GetRange( Weapon, Flags) 
-			+ class'LCStatics'.static.StaticAimError( Y, Z, Accuracy, Flags >>> 16) );
+		X = Normal( X * LCS.static.GetRange( Weapon, Flags) 
+			+ LCS.static.StaticAimError( Y, Z, Accuracy, Flags >>> 16) );
 	}
 
 	if ( (VSize(End-Start) > 30) && (VSize( X - Normal(End-Start)) > 0.05) )
@@ -242,8 +244,8 @@ function bool ValidateWeaponRange( Weapon Weapon, int ExtraFlags, vector StartTr
 	local float YDist;
 	
 	NewExtraFlags = ExtraFlags;
-	Range      = class'LCStatics'.static.GetRange( Weapon, NewExtraFlags);
-	PlayerView = class'LCStatics'.static.DecompressRotator( CmpRot);
+	Range      = LCS.static.GetRange( Weapon, NewExtraFlags);
+	PlayerView = LCS.static.DecompressRotator( CmpRot);
 	GetAxes( PlayerView, X, Y, Z);
 	YDist = ((HitLocation - StartTrace) dot X) - 1;
 	
@@ -341,7 +343,7 @@ function Pawn ffCheckHit( XC_LagCompensator ffOther, private vector ffHit, priva
 	{
 		ffPing = ffOther.ffOwner.BaseEyeHeight;
 		ffOther.ffOwner.BaseEyeHeight = 0;
-		ffOff = Class'LCStatics'.static.CylinderEntrance( ffOff, vector(ffView), ffOther.ffOwner.CollisionRadius, ffOther.ffOwner.CollisionHeight );
+		ffOff = LCS.static.CylinderEntrance( ffOff, vector(ffView), ffOther.ffOwner.CollisionRadius, ffOther.ffOwner.CollisionHeight );
 		ffOff += ffOther.ffOwner.Location;
 		if ( !ffOther.ffOwner.AdjustHitLocation( ffOff, vector(ffView)) )
 		{

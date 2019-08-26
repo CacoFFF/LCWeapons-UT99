@@ -5,6 +5,7 @@ class XC_ClientSettings expands Object
 	
 var() config bool bUseLagCompensation;
 var() config int ForcePredictionCap;
+var() config bool bHighFidelityMode;
 
 
 defaultproperties

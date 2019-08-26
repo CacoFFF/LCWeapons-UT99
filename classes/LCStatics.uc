@@ -367,7 +367,7 @@ static final function bool IsLCWeapon( Weapon W)
 //*************************************************************
 static final function bool RelevantHitActor( Actor Other, optional PlayerPawn P, optional float Ping)
 {
-	if ( Other.RemoteRole == ROLE_None )
+	if ( (Other == None) || Other.RemoteRole == ROLE_None )
 		return false;
 	if ( Other.bIsPawn && (StationaryPawn(Other) == none) )
 		return true;
