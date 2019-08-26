@@ -11,16 +11,20 @@ var XC_ElementAdvancer LCAdv;
 var PlayerPawn LocalPlayer;
 var float ffRefireTimer; //This will enforce security checks
 var float cAdv;
-var float pwAdjust;
 var float pwChain;
 var float ProjAdv;
-var Weapon CurWeapon, PendingWeapon;
+
+var Weapon CurWeapon, CurPendingWeapon;
+var float PendingWeaponAnimAdjust;
+var float PendingWeaponCountdown;
+var float OldFireOffsetY;
 var vector OldPosition;
 var rotator OldView;
 var float OldTimeStamp;
 var int CurrentSWJumpPad;
 var int ClientPredictCap;
 
+var bool bClientPendingWeapon;
 var bool bUseLC;
 var bool bSimAmmo;
 //If LC is globally disabled, this actor won't exist
@@ -28,7 +32,6 @@ var bool bDelayedFire;
 var bool bDelayedAltFire;
 var bool bLogTick;
 var bool bJustSwitched;
-var bool bFakeSwitch;
 var bool bAlreadyProcessed; //Queue following shots
 var bool bSWChecked;
 var bool bNoBinds;
@@ -70,7 +73,7 @@ replication
 	reliable if ( Role == ROLE_Authority )
 		bUseLC, bSimAmmo, cAdv, ProjAdv, bSWChecked, ClientPredictCap;
 	reliable if ( Role == ROLE_Authority )
-		ForceLC, ClientChangeLC, SetPendingW, ReceiveSWJumpPad, LockSWJumpPads, ClientChangePCap;
+		ForceLC, ClientChangeLC, ClientSetPendingWeapon, ClientSetFireOffsetY, ReceiveSWJumpPad, LockSWJumpPads, ClientChangePCap;
 	reliable if ( Role < ROLE_Authority )
 		SetLC, ffSendHit, RequestSWJumpPads, RequestPCap;
 }
@@ -83,12 +86,16 @@ function ffSendHit( Actor ffOther, Weapon Weap, float ffTime, vector ffHit, vect
 	if ( ffISaved > 8 || !bUseLC 
 		|| (Weap == none) || (CurWeapon != Weap) || Weap.IsInState('DownWeapon') )
 		return;
-	if ( !LCComp.ffClassifyShot(ffTime) ) //Time classification failure
-		return;
 		
 	//HACKALICIOUS, FORCE WEAPON ANIMATION TO UPDATE FIRING SPEED IN NYA RIFLE
-	if ( !Weap.IsAnimating() || (!Weap.bAnimLoop && Weap.AnimFrame >= AnimLast) )
+	if ( !Weap.IsAnimating() || (Weap.IsInState('NormalFire') && !Weap.bAnimLoop && Weap.AnimFrame >= Weap.AnimLast) )
+	{
+//		Log("Hackalicious"); //Not occuring! Fix
 		Weap.PlayFiring();
+	}
+		
+	if ( !LCComp.ffClassifyShot(ffTime) ) //Time classification failure
+		return;
 		
 	SavedShots[ffISaved].ffOther = ffOther;
 	SavedShots[ffISaved].Weap = Weap;
@@ -304,23 +311,19 @@ simulated state ClientOp
 	}
 	simulated event Tick( float DeltaTime)
 	{
-		if ( LocalPlayer.Weapon != CurWeapon )
+		if ( ClientWeaponUpdate(DeltaTime) )
+			bJustSwitched = true;
+			
+		if ( bJustSwitched && (TournamentWeapon(CurWeapon) != None) )
 		{
-			CurWeapon = LocalPlayer.Weapon;
-			if ( CurWeapon != none )
-			{
-				CurWeapon.KillCredit( self);
-				if ( CurWeapon.IsAnimating() )
-				{
-					if ( !bFakeSwitch )
-						CurWeapon.AnimFrame = fMin( CurWeapon.AnimFrame + cAdv, 0.99);
-					else if ( pwChain > 0 )
-						CurWeapon.AnimFrame = fMin( CurWeapon.AnimFrame + pwChain, 0.99);
-					pwChain = 0;
-				}
-			}
-			bJustSwitched = (TournamentWeapon(CurWeapon) != none);
+			//If Client weapon is about to become idle, enable ClientFire locally
+			if ( CurWeapon.IsInState('ClientActive') && CurWeapon.IsAnimating() 
+			&& (CurWeapon.AnimFrame + CurWeapon.AnimRate * DeltaTime >= CurWeapon.AnimLast) )
+				TournamentWeapon(CurWeapon).bCanClientFire = true;
+			
+			bJustSwitched = !(CurWeapon.bWeaponUp || TournamentWeapon(CurWeapon).bCanClientFire);
 		}
+
 		if ( bLogTick )
 		{
 			Log("Channel tick at "$Level.TimeSeconds);
@@ -340,18 +343,6 @@ simulated state ClientOp
 		{
 			LocalPlayer.ClientUpdateTime = 5; 
 		}
-		if ( bJustSwitched && TournamentWeapon(CurWeapon).bCanClientFire )
-		{
-			bJustSwitched = false;
-			if ( LocalPlayer.bFire > 0 )
-				CurWeapon.ClientFire(0);
-			else if ( LocalPlayer.bAltFire > 0 )
-				CurWeapon.ClientAltFire(0);
-			else
-				bJustSwitched = true;
-		}
-		if ( pwAdjust > 0 ) //Pending weapon mechanics
-			ClientPendingAdjust( DeltaTime);
 	}
 Begin:
 	Spawn(class'LCBindScanner').bNoBinds = bNoBinds;
@@ -403,6 +394,12 @@ state ServerOp
 	{
 		local int i;
 		
+		if ( PlayerPawn(Owner) == None || Owner.bDeleteMe )
+		{
+			Destroy();
+			return;
+		}
+		
 		ProcessHitList();
 		if ( LCActor.bWeaponAnim )
 			cAdv = (float(LCComp.ffLastPing) / 1000) * Level.TimeDilation;
@@ -414,15 +411,15 @@ state ServerOp
 		else
 			ProjAdv = (fMin(LCComp.ffLastPing, LCActor.MaxPredictNonLC / Level.TimeDilation) / 1000.f) * Level.TimeDilation;
 
-		if ( PlayerPawn(Owner) != none )
-		{
-			OldPosition = Owner.Location;
-			OldView = PlayerPawn(Owner).ViewRotation;
-			OldTimeStamp = PlayerPawn(Owner).CurrentTimeStamp;
-		}
+		CheckPendingWeapon( DeltaTime);
+		CheckFireOffsetY(); //Offset checking before weapon update delays offset update by one frame (good!)
+		WeaponUpdate();
+		OldPosition = Owner.Location;
+		OldView = PlayerPawn(Owner).ViewRotation;
+		OldTimeStamp = PlayerPawn(Owner).CurrentTimeStamp;
 	}
-Begin:
-	While ( Owner != none && !Owner.bDeleteMe )
+	
+	function WeaponUpdate()
 	{
 		if ( Pawn(Owner).Weapon != CurWeapon )
 		{
@@ -431,15 +428,32 @@ Begin:
 			CurWeapon = Pawn(Owner).Weapon;
 			if ( CurWeapon != none )
 				CurWeapon.KillCredit( self);
+			OldFireOffsetY = -1337; //'Reset'
 		}
-		if ( LCActor.bPendingWeapon )
+	}
+	
+	function CheckPendingWeapon( float DeltaTime)
+	{
+		if ( ((PendingWeaponCountdown-=DeltaTime) <= 0) && (CurPendingWeapon != Pawn(Owner).PendingWeapon) )
 		{
-			if ( (Pawn(Owner).PendingWeapon != none) && (PendingWeapon == none || PendingWeapon != Pawn(Owner).PendingWeapon) )
-			{
-				PendingWeapon = Pawn(Owner).PendingWeapon;
-				SetPendingW( PendingWeapon);
-			}
+			CurPendingWeapon = Pawn(Owner).PendingWeapon;
+			ClientSetPendingWeapon( CurPendingWeapon);
+			PendingWeaponCountDown = 0.2 * Level.TimeDilation; //max 5 updates per second
 		}
+	}
+	
+	function CheckFireOffsetY()
+	{
+		if ( (CurWeapon != None) && (CurWeapon.FireOffset.Y != OldFireOffsetY) )
+		{
+			ClientSetFireOffsetY( CurWeapon, CurWeapon.FireOffset.Y);
+			OldFireOffsetY = CurWeapon.FireOffset.Y;
+		}
+	}
+	
+Begin:
+	While ( Owner != none && !Owner.bDeleteMe )
+	{
 		Sleep(0.0);
 		
 		if ( bSWChecked && (LCActor.swPads[CurrentSWJumpPad] != none) && (FRand() < 0.2) )
@@ -452,7 +466,6 @@ Begin:
 				LockSWJumpPads( LCActor.swPads[0].class );
 		}
 	}
-	Destroy();
 }
 
 event SetInitialState()
@@ -518,40 +531,139 @@ simulated function ClientChangePCap( int NewPCap)
 }
 
 
+/****************** Client Weapon control
+ *
+ * ClientSetFireOffsetY   - Fix left/center/right fire offset on client.
+ * ClientSetPendingWeapon - Set PendingWeapon on client if LocalPlayer isn't a TournamentPlayer
+ * ClientWeaponUpdate     - Client detects effective Weapon/PendingWeapon change locally
+ * AdvanceWeaponAnim      - Push forward weapon switch animations by 'lag' time
+*/
 
+simulated function ClientSetFireOffsetY( Weapon Other, float NewFireOffsetY)
+{
+	if ( Other != None )
+		Other.FireOffset.Y = NewFireOffsetY;
+}
 
-simulated function SetPendingW( weapon Other)
+simulated function ClientSetPendingWeapon( Weapon Other)
 {
 	if ( Other == none || Other.bDeleteMe || CurWeapon == Other || CurWeapon == none )
 		return;
-	LocalPlayer.PendingWeapon = Other;
-	PendingWeapon = Other;
-	pwAdjust = 2 + cAdv;
-	if ( CurWeapon.IsInState('ClientDown') )
+	LocalPlayer.PendingWeapon = Other; //TournamentPlayer.ClientPending is set by the weapon (replicated via server)
+	if ( TournamentPlayer(LocalPlayer) != None )
+		TournamentPlayer(LocalPlayer).ClientPending = Other;
+}
+
+simulated function bool ClientWeaponUpdate( float DeltaTime)
+{
+	local ENetRole OldRole;
+	local bool bTournamentWeaponSwitch;
+	
+	if ( TournamentPlayer(LocalPlayer) != None )
 	{
-		if ( CurWeapon.AnimFrame + cAdv >= 1 )
+		if ( TournamentPlayer(LocalPlayer).ClientPending == CurWeapon )
+			TournamentPlayer(LocalPlayer).ClientPending = None;
+		LocalPlayer.PendingWeapon = TournamentPlayer(LocalPlayer).ClientPending;
+	}
+	
+	if ( LocalPlayer.PendingWeapon != None )
+	{
+		if ( !bClientPendingWeapon && CurWeapon.IsInState('ClientDown') && CurWeapon.IsAnimating() )
 		{
-			pwChain = CurWeapon.AnimFrame + cAdv - 1;
-			CurWeapon.AnimFrame = 0.99;
+			PendingWeaponAnimAdjust = cAdv;
+			if ( PendingWeaponAnimAdjust > 0 )
+				AdvanceWeaponAnim( CurWeapon);
+			bClientPendingWeapon = true; //Set to true when has PendingWeapon and old weapon going down
+		}
+	}
+	
+	if ( LocalPlayer.Weapon != CurWeapon )
+	{
+		CurWeapon = LocalPlayer.Weapon;
+		if ( CurWeapon != none )
+		{
+			CurWeapon.KillCredit( self);
+			if ( PendingWeaponAnimAdjust > 0 )
+				AdvanceWeaponAnim( CurWeapon);
+			PendingWeaponAnimAdjust = 0;
+			
+			//Fix player view before server replicates it (this can fix FireOffset!!!)
+			if ( CurWeapon.PlayerViewOffset == CurWeapon.default.PlayerViewOffset )
+			{
+				OldRole = CurWeapon.Role;
+				CurWeapon.Role = ROLE_AutonomousProxy;
+				CurWeapon.SetHand( LocalPlayer.Handedness);
+				CurWeapon.Role = OldRole;
+			}
+		}
+		bClientPendingWeapon = false;
+		bTournamentWeaponSwitch = (TournamentWeapon(CurWeapon) != none);
+	}
+	
+	if ( TournamentWeapon(CurWeapon) != None )
+	{
+		TournamentWeapon(CurWeapon).bForceFire = false;
+		TournamentWeapon(CurWeapon).bForceAltFire = false;
+	}
+	
+	return bTournamentWeaponSwitch;
+}
+
+simulated function AdvanceWeaponAnim( Weapon Other)
+{
+	local float AnimTime;
+	
+	if ( (Other == None) || !Other.IsAnimating() )
+		return;
+
+	PendingWeaponAnimAdjust = fMax( PendingWeaponAnimAdjust, 0);
+
+	//Skip tween
+	if ( Other.AnimFrame < 0 ) 
+	{
+		AnimTime = -Other.AnimFrame / Other.TweenRate;
+		//Force finish tween if bigger adjustment is needed
+		if ( AnimTime < PendingWeaponAnimAdjust ) 
+		{
+			Other.AnimFrame = 0;
+			PendingWeaponAnimAdjust -= AnimTime;
 		}
 		else
-			CurWeapon.AnimFrame = fMin( CurWeapon.AnimFrame + cAdv, 0.99);
-		bFakeSwitch = true;
+		{
+			Other.AnimFrame += PendingWeaponAnimAdjust * Other.TweenRate;
+			PendingWeaponAnimAdjust = 0;
+			return;
+		}
+	}
+	
+	//Skip anim
+	if ( Other.AnimFrame < Other.AnimLast )
+	{
+		AnimTime = (Other.AnimLast - Other.AnimFrame) / Other.AnimRate;
+		//Force finish animation if bigger adjustment is needed
+		if ( AnimTime < PendingWeaponAnimAdjust ) 
+		{
+			Other.AnimFrame = Other.AnimLast;
+			PendingWeaponAnimAdjust -= AnimTime;
+			if ( !Other.bAnimLoop )
+			{
+				Other.AnimRate = 0;
+				Other.bAnimFinished = true;
+			}
+			if ( TournamentWeapon(Other) != None )
+				TournamentWeapon(Other).bCanClientFire = Other.IsInState('ClientActive');
+			Other.AnimEnd();
+		}
+		else
+		{
+			Other.AnimFrame += PendingWeaponAnimAdjust * Other.AnimRate;
+			PendingWeaponAnimAdjust = 0;
+		}
 	}
 }
 
-simulated function ClientPendingAdjust( float DeltaTime)
-{
-	if ( PendingWeapon == LocalPlayer.Weapon )
-		LocalPlayer.PendingWeapon = none;
-	if ( (pwAdjust -= DeltaTime) <= 0 ) //Reset
-	{
-		bFakeSwitch = false;
-		pwAdjust = 0;
-		PendingWeapon = none;
-		LocalPlayer.PendingWeapon = none;
-	}
-}
+
+
 
 simulated function CheckSWJumpPads()
 {

@@ -13,13 +13,6 @@ var bool bGraphicsInitialized;
 var class<TournamentWeapon> OrgClass;
 
 
-replication
-{
-	reliable if ( Role == ROLE_Authority )
-		FixOffset;
-}
-
-
 simulated event Spawned()
 {
 	if ( !bGraphicsInitialized )
@@ -319,15 +312,6 @@ simulated function vector GetStartTrace( out int ExtraFlags, vector X, vector Y,
 simulated function bool IsLC()
 {
 	return (LCChan != none) && LCChan.bUseLC && (LCChan.Owner == Owner);
-}
-function SetHand( float hand)
-{
-	Super.SetHand(hand);
-	FixOffset( FireOffset.Y);
-}
-simulated function FixOffset( float Y)
-{
-	FireOffset.Y=Y;
 }
 
 

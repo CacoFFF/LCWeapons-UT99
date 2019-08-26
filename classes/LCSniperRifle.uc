@@ -14,13 +14,6 @@ var int NormalDamage, HeadshotDamage;
 var Texture Crosshair;
 var Texture FirstPersonSkins[4];
 
-replication
-{
-	reliable if ( Role == ROLE_Authority )
-		FixOffset;
-}
-
-
 
 simulated function ModifyFireRate();
 
@@ -236,15 +229,7 @@ simulated function bool IsLC()
 {
 	return (LCChan != none) && LCChan.bUseLC && (LCChan.Owner == Owner);
 }
-function SetHand( float hand)
-{
-	Super.SetHand(hand);
-	FixOffset(FireOffset.Y);
-}
-simulated function FixOffset( float Y)
-{
-	FireOffset.Y=Y;
-}
+
 
 
 

@@ -23,8 +23,6 @@ var class<Effects> ExplosionClass;
 replication
 {
 	reliable if ( Role == ROLE_Authority )
-		FixOffset;
-	reliable if ( Role == ROLE_Authority )
 		bTeamColor;
 }
 
@@ -270,15 +268,6 @@ simulated function bool IsLC()
 	if ( bNoAmmoDeplete && AmmoType != none )
 		AmmoType.AmmoAmount = AmmoType.MaxAmmo;
 	return (LCChan != none) && LCChan.bUseLC && (LCChan.Owner == Owner);
-}
-function SetHand( float hand)
-{
-	Super.SetHand(hand);
-	FixOffset(FireOffset.Y);
-}
-simulated function FixOffset( float Y)
-{
-	FireOffset.Y = Y;
 }
 
 

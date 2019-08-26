@@ -141,17 +141,14 @@ simulated function PostRender( canvas Canvas )
 	local PlayerPawn P;
 	local float Scale;
 	local float Size;
-	
-	local float Xlength;
 	local float range;
 	local vector HitLocation, HitNormal, StartTrace, EndTrace, X,Y,Z;
-   	local actor Other;
-	local float radpitch;
-
+	local int ExtraFlags;
+	
 	Super(TournamentWeapon).PostRender(Canvas);
+
 	P = PlayerPawn(Owner);
 	Size = 256;
-
 	if ( (P != None) && (P.DesiredFOV != P.DefaultFOV) ) 
 	{
 		bOwnsCrossHair = true;
@@ -180,18 +177,12 @@ simulated function PostRender( canvas Canvas )
 		Canvas.SetPos( Canvas.ClipX/2 + Size+Size/2 - (Size/2*3-P.DesiredFOV/2*3)+1 -10 , Canvas.ClipY/2-1 );
 		Canvas.DrawTile( Lines, Size/2, 1, 65, 64, 63, 0 );
 
-	        // Calc range
-        	XLength=255.0;
-		GetAxes(P.ViewRotation,X,Y,Z);
-		if ((Pawn(Owner).ViewRotation.Pitch >= 0) && (P.ViewRotation.Pitch <= 18000))
-			radpitch = float(P.ViewRotation.Pitch) / float(182) * (Pi/float(180));
-		else
-			radpitch = float(P.ViewRotation.Pitch - 65535) / float(182) * (Pi/float(180));
-
-		StartTrace = Owner.Location + P.EyeHeight*Z*cos(radpitch);
-		EndTrace = StartTrace + 20000 * X;
-		Other = P.TraceShot(HitLocation,HitNormal,EndTrace,StartTrace);
-		range = Vsize(StartTrace-HitLocation)/48-0.25;
+		// Calc range
+		GetAxes( P.ViewRotation,X,Y,Z);
+		StartTrace = GetStartTrace( ExtraFlags, X,Y,Z);
+		EndTrace = StartTrace + X * GetRange( ExtraFlags);
+		class'LCStatics'.static.ffTraceShot( HitLocation, HitNormal, EndTrace, StartTrace, P);
+		range = VSize( StartTrace-HitLocation) / 48 - 0.25;
 
 
 		// Magnification Display

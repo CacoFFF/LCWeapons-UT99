@@ -30,12 +30,9 @@ simulated function PostRender( canvas Canvas )
 {
 	local PlayerPawn P;
 	local float Scale;
-        local float Size;
-        local float Xlength;
 	local float range;
 	local vector HitLocation, HitNormal, StartTrace, EndTrace, X,Y,Z;
-   	local actor Other;
-	local float radpitch;
+	local int ExtraFlags;
 
 	if ( Crosshair == none )
 	{
@@ -44,6 +41,7 @@ simulated function PostRender( canvas Canvas )
 	}
 	else
 		Super(TournamentWeapon).PostRender(Canvas);
+
 	P = PlayerPawn(Owner);
 	if ( (P != None) && (P.DesiredFOV != P.DefaultFOV) )
 	{
@@ -81,25 +79,19 @@ simulated function PostRender( canvas Canvas )
 		Canvas.SetPos( 5*Canvas.ClipX/9 - Canvas.ClipX/1360*(90-P.DesiredFOV), 200*Canvas.ClipY/401 );
 		Canvas.DrawTile( Crosshair, Canvas.ClipX/1360*(90-P.DesiredFOV), Canvas.ClipY/401, 163, 199, 54, 3 );
 
-        	XLength=255.0;
-		GetAxes(Pawn(owner).ViewRotation,X,Y,Z);
-		if ((Pawn(Owner).ViewRotation.Pitch >= 0) && (Pawn(Owner).ViewRotation.Pitch <= 18000))
-			radpitch = float(Pawn(Owner).ViewRotation.Pitch) / float(182) * (Pi/float(180));
-		else
-			radpitch = float(Pawn(Owner).ViewRotation.Pitch - 65535) / float(182) * (Pi/float(180));
+		GetAxes( P.ViewRotation,X,Y,Z);
 
-		StartTrace = Owner.Location + Pawn(Owner).EyeHeight*Z*cos(radpitch);
-	    	AdjustedAim = pawn(owner).AdjustAim(1000000, StartTrace, 2.75*AimError, False, False);
-		EndTrace = StartTrace +(20000 * vector(AdjustedAim));
-		Other = Pawn(Owner).TraceShot(HitLocation,HitNormal,EndTrace,StartTrace);
-		range = Vsize(StartTrace-HitLocation)/48-0.25;
+		StartTrace = GetStartTrace( ExtraFlags, X,Y,Z);
+		EndTrace = StartTrace + X * GetRange( ExtraFlags);
+		class'LCStatics'.static.ffTraceShot( HitLocation, HitNormal, EndTrace, StartTrace, P);
+		range = VSize( StartTrace-HitLocation) / 48 - 0.25;
 
 		Canvas.SetPos( 202*Canvas.ClipX/401-75, 4*Canvas.ClipY/7 + Canvas.ClipY/401 );
 		Canvas.Font = Font'Botpack.WhiteFont';
 		Canvas.DrawColor.R = 255;
 		Canvas.DrawColor.G = 0;
 		Canvas.DrawColor.B = 0;
-                Canvas.DrawText( ""$int(range)$"."$int(10 * range -10 * int(range))$"");
+		Canvas.DrawText( ""$int(range)$"."$int(10 * range -10 * int(range))$"");
 
 		Canvas.SetPos( 202*Canvas.ClipX/401, 4*Canvas.ClipY/7 + Canvas.ClipY/401 );
 		Canvas.Font = Font'Botpack.WhiteFont';

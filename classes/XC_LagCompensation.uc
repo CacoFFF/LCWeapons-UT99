@@ -28,7 +28,6 @@ var Pawn LinkedPawn;
 
 var() config bool bKickers; //Requires restart
 var() config bool bSWJumpPads;
-var() config bool bPendingWeapon;
 var() config bool bWeaponAnim;
 var() config bool bSimulateAmmo;
 var() config bool bUsePrediction;
@@ -425,7 +424,6 @@ defaultproperties
 	PingMult=1
 	bKickers=True
 	bSWJumpPads=True
-	bPendingWeapon=True
 	bWeaponAnim=True
 	bSimulateAmmo=True
 	bUsePrediction=True

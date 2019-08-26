@@ -14,7 +14,7 @@ var bool bBulletNow;
 replication
 {
 	reliable if ( Role == ROLE_Authority )
-		FixOffset;
+		FixOffset; //Needed for Slave enforcer
 }
 
 

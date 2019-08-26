@@ -535,7 +535,7 @@ static final function ReplaceText(out string Text, string Replace, string With)
 //*****************************************************************************
 //Obtains time it gets to complete an animation (in case of loop ignores tween)
 //*****************************************************************************
-static final function float AnimationTime( Actor Other)
+static final function float AnimationTime( Actor Other) //Total time
 {
 	if ( Other.AnimRate <= 0 || Other.AnimLast <= 0 )
 		return 0;
@@ -544,7 +544,25 @@ static final function float AnimationTime( Actor Other)
 	else
 		return (1.0 - Other.AnimLast) / Other.TweenRate + Other.AnimLast / Other.AnimRate;
 }
+static final function float AnimationTimeRemaining( Actor Other) //Remaining time
+{
+	local float StartFrame;
+	local float Time;
 
+	if ( Other.AnimRate > 0 && Other.AnimLast > 0 )
+	{
+		StartFrame = Other.AnimFrame;
+		if ( (StartFrame < 0) && (Other.TweenRate > 0) ) //Tweening
+		{
+			Time = -StartFrame / Other.TweenRate;
+			StartFrame = 0;
+		}
+		else if ( Other.bAnimLoop && (StartFrame > Other.AnimLast) ) //Looping, going back to frame 0
+			StartFrame = (StartFrame % 1.0) - 1.0;
+		Time += (Other.AnimLast - StartFrame) / Other.AnimRate; //Add remaining animation time
+	}
+	return Time;
+}
 
 //**************************************
 // Spawns an enhanced copy of a LCWeapon

@@ -26,9 +26,6 @@ replication
 {
 	reliable if ( bNetOwner && Role == ROLE_Authority )
 		SlowSleep, FastSleep;
-		
-	reliable if ( Role == ROLE_Authority )
-		FixOffset;
 }
 
 
@@ -363,15 +360,6 @@ simulated function vector GetStartTrace( out int ExtraFlags, vector X, vector Y,
 simulated function bool IsLC()
 {
 	return (LCChan != none) && LCChan.bUseLC && (LCChan.Owner == Owner);
-}
-function SetHand( float hand)
-{
-	Super.SetHand( hand);
-	FixOffset( FireOffset.Y);
-}
-simulated function FixOffset( float Y)
-{
-	FireOffset.Y = Y;
 }
 
 

@@ -11,12 +11,6 @@ var int ShootFlags;
 // 1=primary auto
 // 2=alt
 
-replication
-{
-	reliable if ( Role == ROLE_Authority )
-		FixOffset;
-}
-
 
 ////////////////////////////////
 //All of the unlagged code here
@@ -353,13 +347,5 @@ simulated function bool IsLC()
 {
 	return (LCChan != none) && LCChan.bUseLC && (LCChan.Owner == Owner);
 }
-function SetHand( float hand)
-{
-	Super.SetHand(hand);
-	FixOffset( FireOffset.Y);
-}
-simulated function FixOffset( float Y)
-{
-	FireOffset.Y = Y;
-}
+
 

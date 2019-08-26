@@ -26,8 +26,6 @@ var float LastShot;
 replication
 {
 	reliable if ( Role == ROLE_Authority )
-		FixOffset;
-	reliable if ( Role == ROLE_Authority )
 		bTeamColor;
 }
 
@@ -658,11 +656,6 @@ function setHand( float Hand)
 		FireOffset.Y = -1 * Default.FireOffset.Y;
 		Mesh = mesh'PulseGunR';
 	}
-	FixOffset( FireOffset.Y);
-}
-simulated function FixOffset( float Y)
-{
-	FireOffset.Y = Y;
 }
 
 

@@ -27,62 +27,53 @@ simulated function ModifyFireRate()
 
 simulated function PostRender( canvas Canvas )
 {
-   local PlayerPawn P;
-   //local float HudScale;
+	local PlayerPawn P;
+	//local float HudScale;
 	local float Scale;
-        local float Xlength;
-        local float range;
-        local vector HitLocation, HitNormal, StartTrace, EndTrace, X,Y,Z;
-        local actor Other;
-        local float radpitch;
+	local float range;
+	local vector HitLocation, HitNormal, StartTrace, EndTrace, X,Y,Z;
+	local int ExtraFlags;
 
 
 
 
- Super(TournamentWeapon).PostRender(Canvas);
-   P = PlayerPawn(Owner);
-   if ( (P != None) && (P.DesiredFOV != P.DefaultFOV) )
-   {
-	bOwnsCrossHair = true;
+	Super(TournamentWeapon).PostRender(Canvas);
+	P = PlayerPawn(Owner);
+	if ( (P != None) && (P.DesiredFOV != P.DefaultFOV) )
+	{
+		bOwnsCrossHair = true;
 
-      if ( Level.bHighDetailMode )
-         Canvas.Style = ERenderStyle.STY_Normal;
-      else
-         Canvas.Style = ERenderStyle.STY_Normal;
-
-      Canvas.SetPos( 3*Canvas.ClipX/7, 3*Canvas.ClipY/7 );
-      Canvas.DrawTile( Crosshair, Canvas.ClipX/7, Canvas.ClipY/7, 0, 0, 256, 193 );
-      Canvas.SetPos( 200*Canvas.ClipX/401, Canvas.ClipY/229*(90-P.DesiredFOV)+0.6*Canvas.ClipY/28 );
-      Canvas.DrawTile( Crosshair, Canvas.ClipX/401, Canvas.ClipY/28, 0, 20, 3, 10 );
-      Canvas.SetPos( 200*Canvas.ClipX/401, 15.35*Canvas.ClipY/28 + Canvas.ClipY/229*P.DesiredFOV );
-      Canvas.DrawTile( Crosshair, Canvas.ClipX/401, Canvas.ClipY/28, 0, 20, 3, 10 );
-      Canvas.SetPos( Canvas.ClipX/229*(90-P.DesiredFOV)+0.6*Canvas.ClipX/28, 200*Canvas.ClipY/401 );
-      Canvas.DrawTile( Crosshair, Canvas.ClipX/28, Canvas.ClipY/401, 10, 0, 10, 3 );
-      Canvas.SetPos( 15.35*Canvas.ClipX/28 + Canvas.ClipX/229*P.DesiredFOV, 200*Canvas.ClipY/401 );
-      Canvas.DrawTile( Crosshair, Canvas.ClipX/28, Canvas.ClipY/401, 10, 0, 10, 3 );
-      Canvas.SetPos( 199.5*Canvas.ClipX/401, 199.5*Canvas.ClipY/401 );
-      Canvas.DrawTile( Crosshair, 2*Canvas.ClipX/401, 2*Canvas.ClipY/401, 0, 202, 53, 53 );
-      Canvas.SetPos( 200*Canvas.ClipX/401, 4*Canvas.ClipY/9 );
-      Canvas.DrawTile( Crosshair, Canvas.ClipX/401, Canvas.ClipY/1360*(90-P.DesiredFOV), 129, 197, 3, 54 );
-      Canvas.SetPos( 4*Canvas.ClipX/9, 200*Canvas.ClipY/401 );
-      Canvas.DrawTile( Crosshair, Canvas.ClipX/1360*(90-P.DesiredFOV), Canvas.ClipY/401, 69, 200, 54, 3 );
-      Canvas.SetPos( 200*Canvas.ClipX/401, 5*Canvas.ClipY/9 - Canvas.ClipY/1360*(90-P.DesiredFOV) );
-      Canvas.DrawTile( Crosshair, Canvas.ClipX/401, Canvas.ClipY/1360*(90-P.DesiredFOV), 144, 199, 3, 54 );
-      Canvas.SetPos( 5*Canvas.ClipX/9 - Canvas.ClipX/1360*(90-P.DesiredFOV), 200*Canvas.ClipY/401 );
-      Canvas.DrawTile( Crosshair, Canvas.ClipX/1360*(90-P.DesiredFOV), Canvas.ClipY/401, 163, 199, 54, 3 );
-
-       	XLength=255.0;
-		GetAxes(Pawn(owner).ViewRotation,X,Y,Z);
-		if ((Pawn(Owner).ViewRotation.Pitch >= 0) && (Pawn(Owner).ViewRotation.Pitch <= 18000))
-			radpitch = float(Pawn(Owner).ViewRotation.Pitch) / float(182) * (Pi/float(180));
+		if ( Level.bHighDetailMode )
+			Canvas.Style = ERenderStyle.STY_Normal;
 		else
-			radpitch = float(Pawn(Owner).ViewRotation.Pitch - 65535) / float(182) * (Pi/float(180));
+			Canvas.Style = ERenderStyle.STY_Normal;
 
-		StartTrace = Owner.Location + Pawn(Owner).EyeHeight*Z*cos(radpitch);
-	    	AdjustedAim = pawn(owner).AdjustAim(1000000, StartTrace, 2.75*AimError, False, False);
-		EndTrace = StartTrace +(20000 * vector(AdjustedAim));
-		Other = Pawn(Owner).TraceShot(HitLocation,HitNormal,EndTrace,StartTrace);
-		range = Vsize(StartTrace-HitLocation)/48-0.25;
+		Canvas.SetPos( 3*Canvas.ClipX/7, 3*Canvas.ClipY/7 );
+		Canvas.DrawTile( Crosshair, Canvas.ClipX/7, Canvas.ClipY/7, 0, 0, 256, 193 );
+		Canvas.SetPos( 200*Canvas.ClipX/401, Canvas.ClipY/229*(90-P.DesiredFOV)+0.6*Canvas.ClipY/28 );
+		Canvas.DrawTile( Crosshair, Canvas.ClipX/401, Canvas.ClipY/28, 0, 20, 3, 10 );
+		Canvas.SetPos( 200*Canvas.ClipX/401, 15.35*Canvas.ClipY/28 + Canvas.ClipY/229*P.DesiredFOV );
+		Canvas.DrawTile( Crosshair, Canvas.ClipX/401, Canvas.ClipY/28, 0, 20, 3, 10 );
+		Canvas.SetPos( Canvas.ClipX/229*(90-P.DesiredFOV)+0.6*Canvas.ClipX/28, 200*Canvas.ClipY/401 );
+		Canvas.DrawTile( Crosshair, Canvas.ClipX/28, Canvas.ClipY/401, 10, 0, 10, 3 );
+		Canvas.SetPos( 15.35*Canvas.ClipX/28 + Canvas.ClipX/229*P.DesiredFOV, 200*Canvas.ClipY/401 );
+		Canvas.DrawTile( Crosshair, Canvas.ClipX/28, Canvas.ClipY/401, 10, 0, 10, 3 );
+		Canvas.SetPos( 199.5*Canvas.ClipX/401, 199.5*Canvas.ClipY/401 );
+		Canvas.DrawTile( Crosshair, 2*Canvas.ClipX/401, 2*Canvas.ClipY/401, 0, 202, 53, 53 );
+		Canvas.SetPos( 200*Canvas.ClipX/401, 4*Canvas.ClipY/9 );
+		Canvas.DrawTile( Crosshair, Canvas.ClipX/401, Canvas.ClipY/1360*(90-P.DesiredFOV), 129, 197, 3, 54 );
+		Canvas.SetPos( 4*Canvas.ClipX/9, 200*Canvas.ClipY/401 );
+		Canvas.DrawTile( Crosshair, Canvas.ClipX/1360*(90-P.DesiredFOV), Canvas.ClipY/401, 69, 200, 54, 3 );
+		Canvas.SetPos( 200*Canvas.ClipX/401, 5*Canvas.ClipY/9 - Canvas.ClipY/1360*(90-P.DesiredFOV) );
+		Canvas.DrawTile( Crosshair, Canvas.ClipX/401, Canvas.ClipY/1360*(90-P.DesiredFOV), 144, 199, 3, 54 );
+		Canvas.SetPos( 5*Canvas.ClipX/9 - Canvas.ClipX/1360*(90-P.DesiredFOV), 200*Canvas.ClipY/401 );
+		Canvas.DrawTile( Crosshair, Canvas.ClipX/1360*(90-P.DesiredFOV), Canvas.ClipY/401, 163, 199, 54, 3 );
+
+		GetAxes( P.ViewRotation,X,Y,Z);
+		StartTrace = GetStartTrace( ExtraFlags, X,Y,Z);
+		EndTrace = StartTrace + X * GetRange( ExtraFlags);
+		class'LCStatics'.static.ffTraceShot( HitLocation, HitNormal, EndTrace, StartTrace, P);
+		range = VSize( StartTrace-HitLocation) / 48 - 0.25;
 
          // Range Display
 		Canvas.SetPos( 202*Canvas.ClipX/401-75, 4*Canvas.ClipY/7 + Canvas.ClipY/401 );
