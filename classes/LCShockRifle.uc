@@ -35,7 +35,12 @@ simulated event KillCredit( Actor Other)
 		if ( LCChan.bDelayedFire )
 			class'LCStatics'.static.ClientTraceFire( self, LCChan);
 		else if ( LCChan.bDelayedAltFire && (AltProjectileClass != none) )
-			ffSimProj(AltProjectileClass, AltProjectileClass.Default.Speed);
+		{
+			if ( bAltInstantHit )
+				class'LCStatics'.static.ClientTraceFire( self, LCChan);
+			else if ( AltProjectileClass != None )
+				ffSimProj(AltProjectileClass, AltProjectileClass.Default.Speed);
+		}
 	}
 	else if ( LCMutator(Other) != none )
 	{
@@ -43,6 +48,15 @@ simulated event KillCredit( Actor Other)
 			bTeamColor = true;
 	}
 }
+
+function AltFire( float Value )
+{
+	if ( bAltInstantHit )
+		Super(TournamentWeapon).AltFire( Value);
+	else
+		Super.AltFire( Value);
+}
+
 
 simulated function PlayPostSelect()
 {
@@ -83,8 +97,16 @@ simulated function PlayFiring()
 
 simulated function PlayAltFiring()
 {
-	PlayOwnedSound(AltFireSound, SLOT_None,Pawn(Owner).SoundDampening*4.0);
-	LoopAnim('Fire2', AltFireAnimRate * (0.5 + 0.5 * FireAdjust), 0.05);
+	local name FireAnim;
+	
+	PlayOwnedSound( AltFireSound, SLOT_None, Pawn(Owner).SoundDampening*4.0);
+	if ( bAltInstantHit ) FireAnim = 'Fire1';
+	else                  FireAnim = 'Fire2';
+	if ( HasAnim( FireAnim) )
+	{
+		LoopAnim( FireAnim, AltFireAnimRate * (0.5 + 0.5 * FireAdjust), 0.05);
+		ffRefireTimer = 1.0 / AnimRate;
+	}
 	if ( IsLC() && (Level.NetMode == NM_Client) )
 		LCChan.ClientFire(true);
 }

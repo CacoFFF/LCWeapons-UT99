@@ -2,66 +2,12 @@
 
 class LCSuperShockRifle expands LCShockRifle;
 
-var bool bLocaleInitialized;
-
-simulated event Spawned()
-{
-	if ( !bLocaleInitialized )
-		InitLocale();
-}
-
-function Fire( float Value )
-{
-	if (AmmoType.AmmoAmount > 0 )
-	{
-		GotoState('NormalFire');
-		bCanClientFire = true;
-		bPointing=True;
-		ClientFire(value);
-		AmmoType.UseAmmo(1);
-		if ( bRapidFire || (FiringSpeed > 0) )
-			Pawn(Owner).PlayRecoil(FiringSpeed);
-		if ( bInstantHit )
-			TraceFire(0.0);
-		else
-			ProjectileFire(ProjectileClass, ProjectileSpeed, bWarnTarget);
-	}
-}
-
+/*
 function AltFire( float Value )
 {
-	if (AmmoType.AmmoAmount > 0 )
-	{
-		GotoState('NormalFire');
-		bCanClientFire = true;
-		bPointing=True;
-		ClientFire(value);
-		AmmoType.UseAmmo(1);
-		if ( bRapidFire || (FiringSpeed > 0) )
-			Pawn(Owner).PlayRecoil(FiringSpeed);
-		if ( bInstantHit )
-			TraceFire(0.0);
-		else
-			ProjectileFire(ProjectileClass, ProjectileSpeed, bWarnTarget);
-	}
+	Fire(Value);
 }
-
-simulated function InitLocale()
-{
-	default.bLocaleInitialized = true;
-	default.PickupMessage = class'SuperShockRifle'.default.PickupMessage;
-	PickupMessage = default.PickupMessage;
-	default.DeathMessage = class'SuperShockRifle'.default.DeathMessage;
-	DeathMessage = default.DeathMessage;
-	default.ItemName = class'SuperShockRifle'.default.ItemName;
-	ItemName = default.ItemName;
-	
-}
-
-simulated function PlayAltFiring()
-{
-	PlayFiring();
-}
+*/
 
 
 defaultproperties
@@ -71,6 +17,8 @@ defaultproperties
 	AltFireAnimRate=0.4
 	bCombo=False
 	bInstantFlash=False
+	bAltInstantHit=True
+	AltProjectileClass=None
 	BeamPrototype=class'SuperShockBeam'
 	ExplosionClass=class'LCSuperRing2'
 	bNoAmmoDeplete=True

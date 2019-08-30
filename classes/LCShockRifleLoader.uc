@@ -52,9 +52,16 @@ simulated function InitClassDefaults()
 		else if ( LCSR == class'LCBP_ShockRifle' )
 			LoadBeam( "BPSE.BP_ShockBeam");
 		Role = OldRole;
+
+		//If this loader wants to override the beam, do it
+		if ( BeamPrototype != None )
+			LCSR.default.BeamPrototype = BeamPrototype;
 	
+		//When a shock rifle has bAltInstantHit, always play FireSound
+		if ( LCSR.default.bAltInstantHit )
+			LCSR.default.AltFireSound = LCSR.default.FireSound;
 	
-		LCSR.default.BeamPrototype = BeamPrototype;
+			
 		if ( SR != None )
 			LCSR.default.HitDamage = SR.default.HitDamage;
 	}

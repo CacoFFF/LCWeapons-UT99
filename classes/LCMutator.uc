@@ -118,9 +118,10 @@ function int LCReplacement( Actor Other)
 	else if ( ClassIsChildOf( W.Class, class'ShockRifle') )
 	{
 		if ( W.Class == class'ShockRifle' )			return DoReplace(W,class'LCShockRifle');
-		if ( W.Class == class'SuperShockRifle' )	return DoReplace(W,class'LCSuperShockRifle');
+		if ( W.Class == class'SuperShockRifle' )	return DoReplace(W,class'LCSuperShockRifle',class'LCShockRifleLoader');
 		if ( W.IsA('AdvancedShockRifle') )			return DoReplace(W,class'LCAdvancedShockRifle',class'LCShockRifleLoader');
 		if ( W.IsA('BP_ShockRifle') )				return DoReplace(W,class'LCBP_ShockRifle',class'LCShockRifleLoader');
+		if ( W.IsA('RainbowShockRifle') )			return DoReplace(W,class'LCRainbowShockRifle',class'LCShockRifleLoader');
 	}
 	else if ( W.default.Mesh == LodMesh'Botpack.RiflePick' )	//This is a sniper rifle!
 	{
@@ -300,6 +301,7 @@ function bool FoundArena( Mutator M)
 			LCArena.SetupPickups( true, true, false, true);
 			LCArena.AddPropertyWeapon( "bNoAmmoDeplete", "1");
 			LCArena.AddPropertyWeapon( "bCanThrow", "0");
+			SetupLoader( LCArena.OldWeapClass, LCArena.MainWeapClass, class'LCShockRifleLoader');
 			return true;
 		}
 
