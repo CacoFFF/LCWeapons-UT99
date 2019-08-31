@@ -221,11 +221,14 @@ simulated function AffectProjectiles( vector X, vector Y, vector Z)
 	local Projectile P;
 	local float NewSpeed;
 	local vector NewVelocity;
+	local int AffectedCount;
 	
 	ForEach VisibleCollidingActors( class'Projectile', P, 550, Owner.Location)
 		if ( ((P.Physics == PHYS_Projectile) || (P.Physics == PHYS_Falling))
 			&& (Normal(P.Location - Owner.Location) Dot X) > 0.9 )
 		{
+			AffectedCount++;
+			
 			NewSpeed = VSize( P.Velocity);
 			if ( P.Velocity Dot Y > 0 )
 				NewVelocity = NewSpeed * Normal( P.Velocity + (750 - VSize(P.Location - Owner.Location)) * Y);
@@ -242,6 +245,9 @@ simulated function AffectProjectiles( vector X, vector Y, vector Z)
 				P.Velocity = NewVelocity;
 			}
 		}
+		
+	if ( AffectedCount > 0 )
+		Spawn( class'LCImpactAffector').Setup( Pawn(Owner), X, Y);
 }
 
 

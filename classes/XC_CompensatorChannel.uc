@@ -290,6 +290,7 @@ simulated state ClientOp
 		{
 			TmpOuter = new( self, 'LCWeapons') class'Object';
 			ClientSettings = new( TmpOuter, 'Client') class'XC_ClientSettings';
+			ClientSettings.SaveConfig();
 		}
 	}
 	simulated function ClientFire( optional bool bAlt)
