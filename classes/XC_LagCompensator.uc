@@ -18,7 +18,7 @@ var float ffCTimer; //Timer our last shot was fired
 var float ffCTimeStamp; //Timestamp the server is keeping
 var float ffDelayCount;
 var int ffLastPing;
-var float ffLastTimeSeconds;
+var float LastTimeSeconds;
 var float ffRefireTimer; //If above shoot * 2, do not fire
 var float ffCurRegTimer; //Current registered timer
 var float ImpreciseTimer; //Give the player an opportunity to miss security checks once in a while
@@ -55,10 +55,10 @@ event Tick( private float ffDelta)
 	if ( (PlayerPawn(ffOwner) != none) && FRand() < 0.4 )
 		ffLastPing = int(PlayerPawn(ffOwner).ConsoleCommand("GETPING"));
 
-	if ( Level.TimeSeconds - ffLastTimeSeconds > 0.3 * Level.TimeDilation ) //Frame took over 0.3 second!!! (game was paused)
+	if ( Level.TimeSeconds - LastTimeSeconds > 0.25 * Level.TimeDilation ) //Frame took over 0.25 second!!! (game was paused)
 		ffCorrectTimes( ffDelta);
 
-	ffLastTimeSeconds = Level.TimeSeconds;
+	LastTimeSeconds = Level.TimeSeconds;
 
 	//Dead
 	if ( ffOwner.Health <= 0 )
@@ -107,7 +107,7 @@ function ffCorrectTimes( private float ffDelta)
 {
 	local private float ffTmp;
 
-	ffTmp = Level.TimeSeconds - ffLastTimeSeconds;
+	ffTmp = Level.TimeSeconds - LastTimeSeconds;
 	ffTmp -= ffDelta;
 	PosList.CorrectTimeStamp( ffTmp);
 	ffResetTimeStamp();
@@ -125,6 +125,29 @@ function bool ValidateWeapon( Weapon Weapon, out byte Imprecise)
 
 	return true;
 }
+
+function bool ValidateCylinder( vector HitOffset, float Radius, float Height, out byte Imprecise, out string Error)
+{
+	Radius += 3; //Game physics sometimes outputs a hitlocation further away from the cylinder
+	Height += 3;
+	if ( (LCS.static.HSize(HitOffset) > Radius) || (Abs(HitOffset.Z) > Height) )
+	{
+		Imprecise = 20;
+		Error = "Hit Offset outside of target cylinder ["$int(HSize(HitOffset))$","$int(Abs(HitOffset.Z))$"]/["$int(Radius)$","$int(Height)$"]";
+		return false;
+	}
+	return true;
+}
+
+/*
+function bool ValidatePawnHit( Pawn Other, out vector HitOffset, vector TraceDir, float EyeHeight, out byte Imprecise, out string Error)
+{
+	local vector HitLocation;
+	
+	HitLocation = Other.Location + HitOffset;
+	if ( !LCS.static.AdjustHitLocationMod( Other, HitLocation, TraceDir, EyeHeight)
+}
+*/
 
 function bool ValidatePlayerView( float ClientTimeStamp, vector StartTrace, int CmpRot, out byte Imprecise, out string Error)
 {
@@ -307,16 +330,20 @@ function bool ffClassifyShot( private float ffClientTimeS)
 	return true;
 }
 
-function Pawn ffCheckHit( XC_LagCompensator ffOther, private vector ffHit, private vector ffOff, private rotator ffView)
+function Pawn ffCheckHit( XC_LagCompensator ffOther, private vector ffHit, out vector HitOffset, private rotator ffView)
 {
 	local private float ffPing, ffBox;
 	local private XC_PlayerPos ffFirst, ffLast;
 	local private vector ffProj;
 	local private float ffTmp;
+	local Pawn Other;
 	local bool bImageDropping;
 	local byte Slot;
 
-	Assert( ffOther != None);
+	Assert( ffOther != None );
+	
+	Other = ffOther.ffOwner;
+	Assert( Other != None );
 		
 	if ( !FastTrace( ffHit, ffOwner.Location + vect(0,0,1) * ffOwner.BaseEyeHeight) )  //Amplify!!!
 		return none;
@@ -325,37 +352,37 @@ function Pawn ffCheckHit( XC_LagCompensator ffOther, private vector ffHit, priva
 //	ffError = 0.019 + ffPing * 0.11; //If we have 200 ping, error is of 41; a base of 19 is added for server tickrate unreliability
 // Old error, may be reused later
 
-	ffHit -= ffOff;
+	ffHit -= HitOffset;
 
-	ffBox = VSize( vect(1,0,0) * ffOther.ffOwner.CollisionHeight + vect(0,1,0) * ffOther.ffOwner.CollisionRadius);
+	ffBox = VSize( vect(1,0,0) * Other.CollisionHeight + vect(0,1,0) * Other.CollisionRadius);
 	ffBox *= 1.2; //Main tweak
-	ffBox += VSize( ffOther.ffOwner.Location - ffOther.ffOwner.OldLocation ); //Moving? Increase box size
-	if ( VSize(ffOther.ffOwner.Velocity) > 600 )
-		ffBox *= 1 + (VSize(ffOther.ffOwner.Velocity) - 600) / 1500; //if velocity is 2500 (terminal), error is multiplied by almost 3 (super booster hit ensured)
+	ffBox += VSize( Other.Location - Other.OldLocation ); //Moving? Increase box size
+	if ( VSize(Other.Velocity) > 600 )
+		ffBox *= 1 + (VSize(Other.Velocity) - 600) / 1500; //if velocity is 2500 (terminal), error is multiplied by almost 3 (super booster hit ensured)
 
 	//Find the 2 slotted locs we're using
 	Slot = ffOther.PosList.FindTopSlot( ffPing);
 	ffFirst = ConvertPSlot( ffOther.PosList, Slot);
 	ffLast = ConvertPSlot( ffOther.PosList, (Slot-1)&0x7F);
 	
-	//Let's see if the line's doing something!
+	//Apply duck validation (TODO: Move to general validation checks)
 	if ( ffOther.PosList.HasDucked( Slot) )
 	{
-		ffPing = ffOther.ffOwner.BaseEyeHeight;
-		ffOther.ffOwner.BaseEyeHeight = 0;
-		ffOff = LCS.static.CylinderEntrance( ffOff, vector(ffView), ffOther.ffOwner.CollisionRadius, ffOther.ffOwner.CollisionHeight );
-		ffOff += ffOther.ffOwner.Location;
-		if ( !ffOther.ffOwner.AdjustHitLocation( ffOff, vector(ffView)) )
+		if ( HitOffset.Z > 0 ) //Adjust downward to make up for rounding
+			HitOffset.Z -= 0.1;
+		HitOffset += Other.Location;
+		if ( !LCS.static.AdjustHitLocationMod( Other, HitOffset, vector(ffView), (Other.default.BaseEyeHeight+1) * 0.1) )
 		{
-			ffOther.ffOwner.BaseEyeHeight = ffPing;
-			return none; //Show went through
+			HitOffset -= Other.Location;
+			Log("DUCK REJECT"@HitOffset, 'LagCompensator' );
+			return none; //Shot went through
 		}
-		ffOther.ffOwner.BaseEyeHeight = ffPing;
+		HitOffset -= Other.Location;
 	}
 
 	if ( VSize( ffFirst.Location - ffHit) > (ffBox * 2 + ffFirst.ExtraDist + ffLast.ExtraDist) )	//Aim error is huge
 	{
-		if ( !ImageDropping(ffOther.ffOwner, (ffFirst.Location - ffHit) * 0.5) ) //Target is image dropping, analyse after
+		if ( !ImageDropping(Other, (ffFirst.Location - ffHit) * 0.5) ) //Target is image dropping, analyse after
 		{
 			Log("Fail on pass 1: "$VSize( ffFirst.Location - ffHit)$" is the failed size", 'LagCompensator');
 			return none;
@@ -366,19 +393,19 @@ function Pawn ffCheckHit( XC_LagCompensator ffOther, private vector ffHit, priva
 	ffTmp = FixMathDist( ffFirst.Location, ffLast.Location );
 	if ( ffTmp < 3 )
 	{
-		if ( (VSize( ffFirst.Location - ffHit) < ffBox) || ImageDropping(ffOther.ffOwner, ffFirst.Location - ffHit) ) //Single box
-			return ffOther.ffOwner;
+		if ( (VSize( ffFirst.Location - ffHit) < ffBox) || ImageDropping(Other, ffFirst.Location - ffHit) ) //Single box
+			return Other;
 		Log("Fail on pass 2.5: "$ffBox$" is the ffBox size, "$ VSize( ffFirst.Location - ffHit) $" is the point distance", 'LagCompensator');
 	}
 	//Get orthogonal projection from hit location in our segment
 	ffProj = ffFirst.Location + Normal( ffLast.Location - ffFirst.Location ) * ((( ffLast.Location - ffFirst.Location ) dot ( ffHit - ffFirst.Location )) / ffTmp);
-	if ( VSize(ffProj - ffHit) < ffBox * 1.2) //120% box, simulation on low TR servers is horrible
-		return ffOther.ffOwner;
+	if ( VSize(ffProj - ffHit) < ffBox * 1.2 + 10) //120% box (plus 10), simulation on low TR servers is horrible
+		return Other;
 	Log("Fail on pass 3: "$ffBox$" is the ffBox size, "$VSize(ffProj - ffHit)$" is the projection distance", 'LagCompensator');
 	//Math problem, do full log here
-	if ( string(VSize(ffProj - ffHit)) == "-1.#IND00" )
+	if ( LCS.static.Badfloat( VSize(ffProj-ffHit)) )
 	{
-		return ffOther.ffOwner; //Fuck it
+		return Other; //Fuck it
 		Log("MATH PROBLEM!"@ ffProj @ "is projection",'LagCompensator');
 		Log("MATH PROBLEM!"@ ffHit @ "is HIT",'LagCompenstor');
 		Log("MATH PROBLEM!"@ ffFirst.Location @ "is Start loc",'LagCompensator');

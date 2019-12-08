@@ -65,7 +65,7 @@ simulated function PlayRepeatFiring()
 simulated function SimTraceFire(float Accuracy)
 {
 	local vector RealOffset;
-    local vector HitLocation, HitNormal, StartTrace, EndTrace, X,Y,Z;
+    local vector HitLocation, AdjustedHitLocation, HitNormal, StartTrace, EndTrace, X,Y,Z;
 	local Actor Other;
 	local Pawn PawnOwner;
 	local private rotator ffRot;
@@ -88,7 +88,7 @@ simulated function SimTraceFire(float Accuracy)
 		+ X * GetRange( ExtraFlags)
 		+ Accuracy * (FRand() - 0.5 ) * Y * 1000
 		+ Accuracy * (FRand() - 0.5 ) * Z * 1000;
-	Other = Class'LCStatics'.static.ffTraceShot(HitLocation,HitNormal,EndTrace,StartTrace, PawnOwner);
+	Other = Class'LCStatics'.static.ClientTraceShot( HitLocation, AdjustedHitLocation, HitNormal, EndTrace, StartTrace, PawnOwner);
 	ProcessTraceHit(Other, HitLocation, HitNormal, X,Y,Z);
 	FireOffset = RealOffset;
 }

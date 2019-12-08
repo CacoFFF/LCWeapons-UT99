@@ -31,7 +31,7 @@ simulated function PostRender( canvas Canvas )
 	local PlayerPawn P;
 	local float Scale;
 	local float range;
-	local vector HitLocation, HitNormal, StartTrace, EndTrace, X,Y,Z;
+	local vector HitLocation, AdjustedHitLocation, HitNormal, StartTrace, EndTrace, X,Y,Z;
 	local int ExtraFlags;
 
 	if ( Crosshair == none )
@@ -83,7 +83,7 @@ simulated function PostRender( canvas Canvas )
 
 		StartTrace = GetStartTrace( ExtraFlags, X,Y,Z);
 		EndTrace = StartTrace + X * GetRange( ExtraFlags);
-		class'LCStatics'.static.ffTraceShot( HitLocation, HitNormal, EndTrace, StartTrace, P);
+		class'LCStatics'.static.ClientTraceShot( HitLocation, AdjustedHitLocation, HitNormal, EndTrace, StartTrace, P);
 		range = VSize( StartTrace-HitLocation) / 48 - 0.25;
 
 		Canvas.SetPos( 202*Canvas.ClipX/401-75, 4*Canvas.ClipY/7 + Canvas.ClipY/401 );

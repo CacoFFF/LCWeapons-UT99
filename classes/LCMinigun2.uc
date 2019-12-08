@@ -3,7 +3,6 @@
 //==================================================================================
 class LCMinigun2 extends minigun2;
 
-//OBFSTART
 var XC_CompensatorChannel LCChan;
 var bool bBulletNow;
 var bool bSpawnTracers;
@@ -20,6 +19,8 @@ var float TIWCounter;
 
 var int BaseDamage;
 var int RandomDamage;
+
+var vector LastStartTrace;
 
 
 replication
@@ -75,23 +76,24 @@ function TraceFire( float Accuracy )
 	}
 	else
 		Other = Pawn(Owner).TraceShot(HitLocation,HitNormal,EndTrace,StartTrace);
-
-	if ( bSpawnTracers && (Count++ == 4) )
-	{
-		Count = 0;
-		if ( VSize(HitLocation - StartTrace) > 250 )
-		{
-			Tracer = Spawn( class'FV_MTracer',,, StartTrace + 96 * X, rotator( EndTrace-StartTrace));
-			class'LCStatics'.static.SetHiddenEffect( Tracer, Owner, LCChan);
-		}
-	}
 	ProcessTraceHit(Other, HitLocation, HitNormal, vector(AdjustedAim),Y,Z);
 }
 
-function ProcessTraceHit( Actor Other, Vector HitLocation, Vector HitNormal, Vector X, Vector Y, Vector Z)
+simulated function ProcessTraceHit( Actor Other, Vector HitLocation, Vector HitNormal, Vector X, Vector Y, Vector Z)
 {
 	local int rndDam;
 	local Actor Effect;
+	
+	if ( bSpawnTracers && (Count++ == 4) )
+	{
+		Count = 0;
+		if ( VSize(HitLocation - LastStartTrace) > 250 )
+		{
+			Effect = Spawn( class'FV_MTracer',,, LastStartTrace + 96 * X, rotator(HitLocation-LastStartTrace));
+			class'LCStatics'.static.SetHiddenEffect( Effect, Owner, LCChan);
+			Effect = None;
+		}
+	}
 	
 	if ( Other == Level )
 		Effect = Spawn( class'FV_LightWallHitEffect',,, HitLocation+HitNormal, Rotator(HitNormal));
@@ -100,10 +102,10 @@ function ProcessTraceHit( Actor Other, Vector HitLocation, Vector HitNormal, Vec
 		if ( !Other.bIsPawn && !Other.IsA('Carcass') )
 			Effect = Spawn( class'FV_SpriteSmokePuff',,, HitLocation+HitNormal*9);
 		else
-			Other.PlaySound(Sound 'ChunkHit',, 4.0,,100);
+			Other.PlaySound( Sound'ChunkHit',, 4.0,,100);
 
 		if ( Other.IsA('Bot') && (FRand() < 0.2) )
-			Pawn(Other).WarnTarget(Pawn(Owner), 500, X);
+			Pawn(Other).WarnTarget( Pawn(Owner), 500, X);
 
 		rndDam = BaseDamage + Rand(RandomDamage);
 		if ( FRand() < 0.2 )
@@ -190,7 +192,7 @@ simulated function SimGenerateBullet()
 
 simulated function SimTraceFire( float Accuracy )
 {
-	local vector HitLocation, HitNormal, StartTrace, EndTrace, X,Y,Z;
+	local vector HitLocation, AdjustedHitLocation, HitNormal, StartTrace, EndTrace, X,Y,Z;
 	local Actor Other;
 	local int ExtraFlags;
 
@@ -203,15 +205,8 @@ simulated function SimTraceFire( float Accuracy )
 		+ X * GetRange( ExtraFlags)
 		+ Accuracy * (FRand() - 0.5 ) * Y * 1000
 		+ Accuracy * (FRand() - 0.5 ) * Z * 1000;
-	Other = class'LCStatics'.static.ffTraceShot( HitLocation, HitNormal, EndTrace, StartTrace, Pawn(Owner));
-	if ( bSpawnTracers && (Count++ == 4) )
-	{
-		Count = 0;
-		if ( VSize(HitLocation - StartTrace) > 250 )
-			Spawn(class'FV_MTracer',,, StartTrace + 96 * X,rotator(EndTrace-StartTrace));
-	}
-	if ( Other == Level )
-		Spawn(class'FV_LightWallHitEffect',,, HitLocation+HitNormal, Rotator(HitNormal));
+	Other = class'LCStatics'.static.ClientTraceShot( HitLocation, AdjustedHitLocation, HitNormal, EndTrace, StartTrace, Pawn(Owner));
+	ProcessTraceHit(Other, HitLocation, HitNormal, X,Y,Z);
 }
 
 
@@ -355,7 +350,8 @@ simulated function float GetRange( out int ExtraFlags)
 }
 simulated function vector GetStartTrace( out int ExtraFlags, vector X, vector Y, vector Z)
 {
-	return Owner.Location + CalcDrawOffset() + FireOffset.Y * Y + FireOffset.Z * Z;
+	LastStartTrace = Owner.Location + CalcDrawOffset() + FireOffset.Y * Y + FireOffset.Z * Z;
+	return LastStartTrace;
 }
 simulated function bool IsLC()
 {

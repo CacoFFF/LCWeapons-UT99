@@ -57,13 +57,13 @@ simulated function InitGraphics()
 }
 
 
-function ProcessTraceHit(Actor Other, Vector HitLocation, Vector HitNormal, Vector X, Vector Y, Vector Z)
+simulated function ProcessTraceHit(Actor Other, Vector HitLocation, Vector HitNormal, Vector X, Vector Y, Vector Z)
 {
 	local int rndDam;
 	local Actor Effect;
 
 	if ( PlayerPawn(Owner) != None )
-		PlayerPawn(Owner).ShakeView(ShakeTime, ShakeMag, ShakeVert);
+		PlayerPawn(Owner).ShakeView( ShakeTime, ShakeMag, ShakeVert);
   	if (Other == Level) 
 	{
 		Effect = Spawn( class'FV_spexp', Owner,, HitLocation + HitNormal * 9, Rotator(HitNormal));
@@ -80,25 +80,6 @@ function ProcessTraceHit(Actor Other, Vector HitLocation, Vector HitNormal, Vect
 	}
 }
 
-simulated function SimTraceFire( float Accuracy )
-{
-	local vector HitLocation, HitNormal, StartTrace, EndTrace, X,Y,Z;
-	local Actor Other;
-	local int ExtraFlags;
-
-	if ( Owner == None )
-		return;
-	GetAxes( class'LCStatics'.static.PlayerRot( Pawn(Owner)), X,Y,Z);
-
-	StartTrace = GetStartTrace( ExtraFlags, X,Y,Z);  //CALCDRAWOFFSET MIGHT SCREW UP THINGS
-	EndTrace = StartTrace
-		+ X * GetRange( ExtraFlags)
-		+ Accuracy * (FRand() - 0.5 ) * Y * 1000
-		+ Accuracy * (FRand() - 0.5 ) * Z * 1000;
-	Other = class'LCStatics'.static.ffTraceShot( HitLocation, HitNormal, EndTrace, StartTrace, Pawn(Owner));
-	if ( Other == Level )
-		Spawn( class'FV_spexp',,, HitLocation + HitNormal * 9, Rotator(HitNormal));
-}
 
 
 defaultproperties
@@ -115,4 +96,5 @@ defaultproperties
      LightHue=28
      LightSaturation=32
      LightRadius=6
+     bSpawnTracers=False
 }

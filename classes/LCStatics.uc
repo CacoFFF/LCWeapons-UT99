@@ -5,10 +5,10 @@
 class LCStatics expands Object
 	abstract;
 
-#exec OBJ LOAD FILE="LCPureUtil.u" PACKAGE=LCWeapons_0022
-#exec OBJ LOAD FILE="SiegeUtil_A.u" PACKAGE=LCWeapons_0022
-#exec OBJ LOAD FILE="TimerUtil.u" PACKAGE=LCWeapons_0022
-#exec OBJ LOAD FILE="LCExtraFuncs.u" PACKAGE=LCWeapons_0022
+#exec OBJ LOAD FILE="LCPureUtil.u" PACKAGE=LCWeapons_0023
+#exec OBJ LOAD FILE="SiegeUtil_A.u" PACKAGE=LCWeapons_0023
+#exec OBJ LOAD FILE="TimerUtil.u" PACKAGE=LCWeapons_0023
+#exec OBJ LOAD FILE="LCExtraFuncs.u" PACKAGE=LCWeapons_0023
 
 const MULTIPLIER = 0x015a4e35;
 const INCREMENT = 1;
@@ -74,12 +74,12 @@ static final function vector GetStartTrace( Actor Other, out int ExtraFlags, vec
 }
 
 //********************************
-//LC type weapon generic tracefire
+//ZP type weapon generic tracefire
 //********************************
 static final function ClientTraceFire( Weapon Weapon, XC_CompensatorChannel LCChan, optional float Accuracy)
 {
 	local PlayerPawn Shooter;
-	local vector X, Y, Z, HitLocation, HitNormal, StartTrace, EndTrace, HitOffset;
+	local vector X, Y, Z, HitLocation, AdjustedHitLocation, HitNormal, StartTrace, EndTrace, HitOffset;
 	local Actor HitActor;
 	local rotator View;
 	local int CompressedView;
@@ -102,65 +102,42 @@ static final function ClientTraceFire( Weapon Weapon, XC_CompensatorChannel LCCh
 		ExtraFlags = ExtraFlags | (Seed << 16);
 	}
 	
-	HitActor = ffTraceShot( HitLocation, HitNormal, EndTrace, StartTrace, Shooter);
-	Weapon.ProcessTraceHit( HitActor, HitLocation, HitNormal, X, Y, Z);
-	if ( HitActor != None )
+	HitActor = ClientTraceShot( HitLocation, AdjustedHitLocation, HitNormal, EndTrace, StartTrace, Shooter);
+	Weapon.ProcessTraceHit( HitActor, AdjustedHitLocation, HitNormal, X, Y, Z);
+	if ( HitActor == Weapon.Level )
+		HitActor = None;
+	else if ( HitActor != None )
 		HitOffset = HitLocation - HitActor.Location;
 
+	HitOffset *= 10;
 	LCChan.ffSendHit( HitActor, Weapon, Weapon.Level.TimeSeconds, HitLocation, HitOffset, StartTrace, CompressedView, ExtraFlags, Accuracy);
 }
-
 
 //*************************
 //Client friendly TraceShot
 //*************************
-static final function Actor ffTraceShot( out vector HitLocation, out vector HitNormal, vector EndTrace, vector StartTrace, Pawn P)
+static final function Actor ClientTraceShot( out vector HitLocation, out vector AdjustedHitLocation, out vector HitNormal, vector EndTrace, vector StartTrace, Pawn P)
 {
 	local Actor A;
-	local float OldEyeHeight, OldBaseEyeHeight;
-	local bool bHit;
-	local byte OldRole;
 	
 	if ( P == None )
 		return None;
 		
 	ForEach P.TraceActors( class'Actor', A, HitLocation, HitNormal, EndTrace, StartTrace)
 	{
+		AdjustedHitLocation = HitLocation;
 		if ( TraceStopper( A) )
 			return A;
 		else if ( Pawn(A) != None )
 		{
-			if ( A == P )
-				continue;
-			OldEyeHeight = Pawn(A).EyeHeight;
-			OldBaseEyeHeight = Pawn(A).BaseEyeHeight;
-			if ( (A.Mesh != None) && A.HasAnim( A.AnimSequence) )
-			{
-				if ( (A.GetAnimGroup( A.AnimSequence) == 'Ducking') && (A.AnimFrame > -0.03) )
-				{
-					Pawn(A).BaseEyeHeight = Pawn(A).default.BaseEyeHeight * 0.1;
-					Pawn(A).EyeHeight = Pawn(A).BaseEyeHeight;
-				}
-				else if ( InStr( string(A.AnimSequence),"Dead") != -1 || InStr( string(A.AnimSequence),"DeathEnd") != -1 )
-				{
-					Pawn(A).BaseEyeHeight = 0;
-					Pawn(A).EyeHeight = 0;
-				}
-			}
-			OldRole = A.Role;
-			A.Role = ROLE_Authority; //SOME PAWNS DON'T DEFINE THE FUNC AS SIMULATED!
-			bHit = Pawn(A).AdjustHitLocation( HitLocation, EndTrace - StartTrace); 
-			A.SetPropertyText( "Role", default.RoleText[OldRole]);
-			
-			Pawn(A).BaseEyeHeight = OldBaseEyeHeight;
-			Pawn(A).EyeHeight = OldEyeHeight;
-			if ( bHit )
+			if ( (A != P) && AdjustHitLocationMod( Pawn(A), AdjustedHitLocation, EndTrace-StartTrace) )
 				return A;
 		}
 		else if ( A.bProjTarget || (A.bBlockActors && A.bBlockPlayers) )
 			return A;
 	}
 	HitLocation = EndTrace;
+	AdjustedHitLocation = EndTrace;
 	HitNormal = Normal( StartTrace - EndTrace);
 	return None;
 }
@@ -184,18 +161,7 @@ static final function Actor ffIrrelevantShot( out vector HitLocation, out vector
 		{} //implicit continue
 		else if ( Pawn(A) != None )
 		{
-			OldEyeHeight = Pawn(A).EyeHeight;
-			OldBaseEyeHeight = Pawn(A).BaseEyeHeight;
-			if ( (A.Mesh != None) && A.HasAnim( A.AnimSequence) ) //Feigndeath doesn't need server adjustment
-				if ( (A.GetAnimGroup( A.AnimSequence) == 'Ducking') && (A.AnimFrame > -0.03) )
-				{
-					Pawn(A).BaseEyeHeight = Pawn(A).default.BaseEyeHeight * 0.1;
-					Pawn(A).EyeHeight = Pawn(A).BaseEyeHeight;
-				} 
-			bHit = Pawn(A).AdjustHitLocation( HitLocation, EndTrace - StartTrace); 
-			Pawn(A).BaseEyeHeight = OldBaseEyeHeight;
-			Pawn(A).EyeHeight = OldEyeHeight;
-			if ( bHit )
+			if ( AdjustHitLocationMod( Pawn(A), HitLocation, EndTrace - StartTrace) )
 				return A;
 		}
 		else if ( A.bProjTarget || (A.bBlockActors && A.bBlockPlayers) )
@@ -226,6 +192,56 @@ static final function Actor LCTrace( out vector HitLocation, out vector HitNorma
 	}
 	return None;
 }
+
+
+//***************************************
+//Modified AdjustHitLocation for ZP shots
+//***************************************
+static final function bool AdjustHitLocationMod( Pawn Other, out vector HitLocation, vector TraceDir, optional float ForceEyeHeight)
+{
+	local float OldEyeHeight, OldBaseEyeHeight;
+	local vector TmpHitLocation;
+	local bool bHit, bDumbProxy, bSimulatedProxy;
+	
+	//See if EyeHeight should be modified (if not pre-modified by caller)
+	if ( (ForceEyeHeight == 0) && (Other.Mesh != None) && Other.HasAnim(Other.AnimSequence) )
+	{
+		if ( (Other.GetAnimGroup(Other.AnimSequence) == 'Ducking') && (Other.AnimFrame > -0.03) )
+			ForceEyeHeight = (Other.default.BaseEyeHeight+1) * 0.1;
+		else if ( InStr(string(Other.AnimSequence),"Dead") != -1 || InStr(string(Other.AnimSequence),"DeathEnd") != -1 )
+			ForceEyeHeight = (Other.default.BaseEyeHeight+1) * -0.1;
+	}
+	
+	//Modify eye height
+	OldEyeHeight     = Other.EyeHeight;
+	OldBaseEyeHeight = Other.BaseEyeHeight;
+	if ( ForceEyeHeight != 0 )
+	{
+		Other.BaseEyeHeight = ForceEyeHeight;
+		Other.EyeHeight = ForceEyeHeight;
+	}
+	//Temporarily correct role to allow calling AdjustHitLocation
+	bDumbProxy      = (Other.Role == ROLE_DumbProxy);
+	bSimulatedProxy = (Other.Role == ROLE_SimulatedProxy);
+	if ( bDumbProxy || bSimulatedProxy ) 
+		Other.Role = ROLE_AutonomousProxy;
+		
+	TmpHitLocation = HitLocation;
+	bHit = Other.AdjustHitLocation( TmpHitLocation, TraceDir);
+	
+	//Restore role and eye height
+	if ( bSimulatedProxy ) Other.Role = ROLE_SimulatedProxy;
+	else if ( bDumbProxy ) Other.Role = ROLE_DumbProxy;
+	Other.EyeHeight     = OldEyeHeight;
+	Other.BaseEyeHeight = OldBaseEyeHeight;
+	
+	//Ensure new HitLocation is in same line as requested one
+	TraceDir = Normal(TraceDir);
+	HitLocation = HitLocation + ((TmpHitLocation - HitLocation) dot TraceDir) * TraceDir;
+	
+	return bHit;
+}
+
 
 //*****************
 //Swap two integers
@@ -736,7 +752,7 @@ static final function float HSize( vector aVec)
 	return VSize(aVec * vect(1,1,0));
 }
 
-static final function bool ActorsTouching( actor A, actor B)
+static final function bool ActorsTouching( Actor A, Actor B)
 {
 	if ( abs(A.Location.Z - B.Location.Z) > (A.CollisionHeight + B.CollisionHeight) )
 		return false;
@@ -751,6 +767,14 @@ static final function vector VLerp( float Alpha, vector A, vector B)
 static final function float GetAlpha( float Value, float A, float B)
 {
 	return fClamp( (Value-A) / (B-A) ,0,1);
+}
+
+static final function bool BadFloat( float F)
+{
+	local string S;
+	
+	S = Caps(string(F));
+	return InStr(S,"#") != -1 || InStr(S,"NAN") != -1 || InStr(S,"IND") != -1 || InStr(S,"INF") != -1;
 }
 
 

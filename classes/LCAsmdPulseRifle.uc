@@ -134,7 +134,7 @@ function ServerTraceFire( float Accuracy)
 
 simulated function SimTraceFire()
 {
-	local vector HitLocation, HitNormal, StartTrace, EndTrace, X,Y,Z;
+	local vector HitLocation, AdjustedHitLocation, HitNormal, StartTrace, EndTrace, X,Y,Z;
 	local Actor Other;
 	local Pawn PawnOwner;
 	local int ExtraFlags;
@@ -146,8 +146,8 @@ simulated function SimTraceFire()
 	LastShot = Level.TimeSeconds;
 	StartTrace = GetStartTrace( ExtraFlags, X,Y,Z);
 	EndTrace = StartTrace + X * GetRange( ExtraFlags);
-	Other = class'LCStatics'.static.ffTraceShot( HitLocation, HitNormal, EndTrace, StartTrace, PawnOwner);
-	SimProcessTraceHit( Other, HitLocation, HitNormal, X,Y,Z);
+	Other = class'LCStatics'.static.ClientTraceShot( HitLocation, AdjustedHitLocation, HitNormal, EndTrace, StartTrace, PawnOwner);
+	SimProcessTraceHit( Other, AdjustedHitLocation, HitNormal, X,Y,Z);
 }
 
 simulated function SimProcessTraceHit(Actor Other, Vector HitLocation, Vector HitNormal, Vector X, Vector Y, Vector Z)

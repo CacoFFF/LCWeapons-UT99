@@ -169,7 +169,7 @@ state ClientFiring
 
 simulated function SimTraceFire()
 {
-	local vector HitLocation, HitNormal, StartTrace, EndTrace, X,Y,Z;
+	local vector HitLocation, AdjustedHitLocation, HitNormal, StartTrace, EndTrace, X,Y,Z;
 	local Actor Other;
 
 	if ( Pawn(Owner) == none )
@@ -178,11 +178,8 @@ simulated function SimTraceFire()
 	StartTrace = GetStartTrace( ShootFlags, X,Y,Z) ;
 	EndTrace = StartTrace + GetRange( ShootFlags) * X; 
 
-	Other = Class'LCStatics'.static.ffTraceShot(HitLocation,HitNormal,EndTrace,StartTrace,Pawn(Owner) );
+	Other = Class'LCStatics'.static.ClientTraceShot(HitLocation,AdjustedHitLocation,HitNormal,EndTrace,StartTrace,Pawn(Owner) );
 	ProcessTraceHit( Other, HitLocation, HitNormal, X,Y,Z);
-	
-	if ( ShootFlags == 2 )
-		AffectProjectiles( X,Y,Z);
 }
 
 function TraceFire( float Accuracy)
@@ -211,9 +208,6 @@ function TraceFire( float Accuracy)
 	else
 		Other = PawnOwner.TraceShot(HitLocation, HitNormal, EndTrace, StartTrace);
 	ProcessTraceHit(Other, HitLocation, HitNormal, vector(AdjustedAim), Y, Z);
-	
-	if ( ShootFlags == 2 )
-		AffectProjectiles( X,Y,Z);
 }
 
 simulated function AffectProjectiles( vector X, vector Y, vector Z)
@@ -266,6 +260,7 @@ simulated function ProcessTraceHit( Actor Other, Vector HitLocation, Vector HitN
 	
 	if ( ShootFlags == 2 ) //Alt fire
 	{
+		AffectProjectiles( X,Y,Z);
 		Scale = VSize( StartTrace - HitLocation) / GetRange(ShootFlags);
 		if ( bLevelHit )
 			Owner.TakeDamage( 24.0 * Scale, Pawn(Owner), HitLocation, -40000.0 * X * Scale, MyDamageType);
@@ -286,11 +281,7 @@ simulated function ProcessTraceHit( Actor Other, Vector HitLocation, Vector HitN
 				Owner.TakeDamage( 36.0, Pawn(Owner), HitLocation, -69000.0 * ChargeSize * X, MyDamageType);
 		}
 		else
-		{
-			if ( Other.bIsPawn && (VSize(HitLocation - StartTrace) > 90) )
-				return;
 			Other.TakeDamage( 60.0 * ChargeSize, Pawn(Owner), HitLocation, 66000.0 * ChargeSize * X, MyDamageType);
-		}
 	}
 
 	//Common effect spawner

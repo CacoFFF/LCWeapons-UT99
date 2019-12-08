@@ -142,7 +142,7 @@ simulated function PostRender( canvas Canvas )
 	local float Scale;
 	local float Size;
 	local float range;
-	local vector HitLocation, HitNormal, StartTrace, EndTrace, X,Y,Z;
+	local vector HitLocation, AdjustedHitLocation, HitNormal, StartTrace, EndTrace, X,Y,Z;
 	local int ExtraFlags;
 	
 	Super(TournamentWeapon).PostRender(Canvas);
@@ -181,8 +181,8 @@ simulated function PostRender( canvas Canvas )
 		GetAxes( P.ViewRotation,X,Y,Z);
 		StartTrace = GetStartTrace( ExtraFlags, X,Y,Z);
 		EndTrace = StartTrace + X * GetRange( ExtraFlags);
-		class'LCStatics'.static.ffTraceShot( HitLocation, HitNormal, EndTrace, StartTrace, P);
-		range = VSize( StartTrace-HitLocation) / 48 - 0.25;
+		class'LCStatics'.static.ClientTraceShot( HitLocation, AdjustedHitLocation, HitNormal, EndTrace, StartTrace, P);
+		range = VSize( StartTrace-AdjustedHitLocation) / 48 - 0.25;
 
 
 		// Magnification Display

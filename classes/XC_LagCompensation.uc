@@ -350,7 +350,7 @@ function vector WeaponStartTrace( Weapon W)
 	return W.Owner.Location + W.CalcDrawOffset() + W.FireOffset.Y * Y + W.FireOffset.Z * Z; 
 }
 
-function ScoreKill(Pawn Killer, Pawn Other)
+function ScoreKill( Pawn Killer, Pawn Other)
 {
 	local XC_LagCompensator LCComp;
 	
@@ -365,7 +365,7 @@ function ScoreKill(Pawn Killer, Pawn Other)
 		NextMutator.ScoreKill(Killer, Other);
 }
 
-function bool IsRelevant(Actor Other, out byte bSuperRelevant)
+function bool IsRelevant( Actor Other, out byte bSuperRelevant)
 {
 	local bool bResult;
 
@@ -391,7 +391,7 @@ function bool HandleEndGame()
 	return false;
 }
 
-function XC_GenericPosList AddGenericPos( actor Other)
+function XC_GenericPosList AddGenericPos( Actor Other)
 {
 	local XC_GenericPosList Tmp;
 
