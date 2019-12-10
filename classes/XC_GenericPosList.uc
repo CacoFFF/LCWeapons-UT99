@@ -1,10 +1,9 @@
 //
-//  Player position holder actor, designed for lag compensation
+//  Generic position holder actor, designed for lag compensation
 ///////////////////////////////////////////////////////////////
-class XC_GenericPosList expands Info;
+class XC_GenericPosList expands XC_PosList;
 
 var float STimeStamp[32];
-//var float CTimeStamp[32];
 var float ExtraDist[32];
 var vector SavedLoc[32];
 var int Flags[32];
@@ -12,10 +11,7 @@ var int Flags[32];
 //2 - Duck
 //4 - Teleported
 
-var XC_LagCompensation Master;
-var Actor Compensated;
 var XC_GenericPosList PrevG, NextG;
-var vector SizeVec;
 var bool bPingHandicap;
 
 state Active
@@ -25,50 +21,34 @@ state Active
 		UpdateNow();
 	}
 Begin:
-	if ( Compensated == none || Compensated.bDeleteMe )
+	if ( Owner == none || Owner.bDeleteMe )
 	{
 		UnHook();
 		Stop;
 	}
-	if ( Master.bUpdateGeneric )
+	if ( Mutator.bUpdateGeneric )
 		UpdateNow();
 	Sleep(0.0);
 	Goto('Begin');
 }
-
-//Used for Alpha
-state Dummy
-{
-	event BeginState()
-	{
-		Compensated = self;
-	}
-Begin:
-	if ( Master.bUpdateGeneric )
-		UpdateNow();
-	Sleep(0.0);
-	Goto('Begin');
-}
-
-
 
 
 function UpdateNow()
 {
 	local byte i, j;
 	local int NewFlags;
-	i = Master.GenericPos;
+	i = Mutator.GenericPos;
 	j = (i - 1) & 0x1F; //32
-	SavedLoc[i] = Compensated.Location;
-	ExtraDist[i] = VSize(Compensated.Velocity) * 0.2;
-	if ( !(Compensated.bProjTarget && Compensated.bCollideActors) )
+	SavedLoc[i] = Owner.Location;
+	ExtraDist[i] = VSize(Owner.Velocity) * 0.2;
+	if ( !(Owner.bProjTarget && Owner.bCollideActors) )
 		NewFlags = 1;
 	if ( VSize( SavedLoc[i] - SavedLoc[j]) > 170 )
 		NewFlags += 4;
 	Flags[i] = NewFlags;
 	STimeStamp[i] = Level.TimeSeconds;
-	SizeVec.X = Compensated.CollisionHeight;
-	SizeVec.Y = Compensated.CollisionRadius;
+	ActorSphere.X = Owner.CollisionHeight;
+	ActorSphere.Y = Owner.CollisionRadius;
 }
 
 function UnHook()
@@ -76,9 +56,9 @@ function UnHook()
 	GotoState('');
 	if ( PrevG == none )
 	{
-		if ( Master.ActiveGen == self )
+		if ( Mutator.ActiveGen == self )
 		{
-			Master.ActiveGen = NextG;
+			Mutator.ActiveGen = NextG;
 			if ( NextG != none )
 				NextG.PrevG = none;
 		}
@@ -91,33 +71,33 @@ function UnHook()
 		if ( NextG != none )
 			NextG.PrevG = PrevG;
 	}
-	NextG = Master.InActiveGen;
-	PrevG = none;
-	Master.InActiveGen = self;
-	Compensated = none;
+	NextG = Mutator.InActiveGen;
+	PrevG = None;
+	Mutator.InActiveGen = self;
+	SetOwner(None);
 	bPingHandicap = false;
 }
 
 
 //Top slot is the newer location of said segment
 //This function is super optimized
-function int FindTopSlot( private float ffDelayed) //Time dilation must be applied to ffDelayed
+function int FindTopSlot( float Delayed) //Time dilation must be applied to Delayed
 {
 	local byte i, j;
 	local int count; //0-31... 32 is 0, and we can't return 31 due to requiring the next position
 
-	ffDelayed *= Level.TimeDilation; //Because ping > real time is magnified otherwise
-	j = Master.GenericPos; //UNDOCUMENTED > WE DON'T KNOW IF MASTER ALREADY TICKED
+	Delayed *= Level.TimeDilation; //Because ping > real time is magnified otherwise
+	j = Mutator.GenericPos; //UNDOCUMENTED > WE DON'T KNOW IF MASTER ALREADY TICKED
 
 	ADVANCE:
 	i = ByteDiff( j, count += 4 );
-	if ( (Level.TimeSeconds - STimeStamp[i]) < ffDelayed )
+	if ( (Level.TimeSeconds - STimeStamp[i]) < Delayed )
 	{
 		if ( count < 28 )
 			Goto ADVANCE;
 		//Check the last row [29], or return 30-31 (new+old)
 		i = ByteDiff( j, ++count);
-		if ( (Level.TimeSeconds - STimeStamp[i]) > ffDelayed )
+		if ( (Level.TimeSeconds - STimeStamp[i]) > Delayed )
 			return ByteDiff( j, count-1);
 		return ByteDiff( j, 30); //Hardcoded
 	}
@@ -126,7 +106,7 @@ function int FindTopSlot( private float ffDelayed) //Time dilation must be appli
 	While ( (++count % 4) != 0 )
 	{
 		i = ByteDiff(j,count);
-		if ( (Level.TimeSeconds - STimeStamp[i]) > ffDelayed )
+		if ( (Level.TimeSeconds - STimeStamp[i]) > Delayed )
 			return ByteDiff(j,count-1);
 	}
 	return ByteDiff(j,count-1); //Means the %4 was the right one
@@ -176,17 +156,6 @@ function bool HasDucked( byte Slot)
 	return ((Flags[Slot] & 2) != 0);
 }
 
-//TheLoc should be my past location
-function bool CanHit( vector Start, vector TheLoc, vector X, vector Y, vector Z)
-{
-	TheLoc -= Start;
-	if ( TheLoc dot X < 0 )
-		return false;
-	X.X = 0;
-	X.Y = TheLoc dot Y;
-	X.Z = TheLoc dot Z;
-	return VSize(X) <= VSize(SizeVec);
-}
 
 
 defaultproperties

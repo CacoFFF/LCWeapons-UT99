@@ -9,11 +9,12 @@ class XC_LagCompensation expands Mutator
 const LCS = class'LCStatics';
 
 var XC_LagCompensator ffCompList;
-var XC_GenericPosList ActiveGen, InactiveGen, DummyGen;
+var XC_GenericPosList ActiveGen, InactiveGen;
 var int iCombo; //Combo tracker count
 var float ffMaxLatency;
 var string Pkg;
 var int ffCurId;
+var float LastTimeSeconds;
 
 var GameEngine XCGE;
 
@@ -49,9 +50,6 @@ event PreBeginPlay()
 
 	if ( LCS.static.DetectXCGE( self) )
 		SetPropertyText("XCGE", XLevel.GetPropertyText("Engine"));
-	DummyGen = Spawn(class'XC_GenericPosList');
-	DummyGen.Master = self;
-	DummyGen.GotoState('Dummy');
 	Spawn(class'LCProjSN').Mutator = self;
 	bNoBinds = LCS.default.bXCGE; //This Game Engine is about to correct GetWeapon!!!
 	if ( LCS.default.XCGE_Version >= 11 )
@@ -130,13 +128,27 @@ function Mutate (string MutateString, PlayerPawn Sender)
 	Super.Mutate(MutateString,Sender);
 }
 
-event Tick( private float ffDelta)
+event Tick( float DeltaTime)
 {
+	local float TimeOffset;
+	local XC_PosList PosList;
+	local XC_LagCompensator LCComp;
+
 	bNeedsHiddenEffects = (LCS.default.XCGE_Version < 17) || (XCGE == none) || !bool(XCGE.GetPropertyText("bUseNewRelevancy"));
 	GlobalPos = (GlobalPos + 1) & 0x7F; //Every tick
 	bUpdateGeneric = ((GlobalPos % 4) == 0);
 	if ( bUpdateGeneric )
 		GenericPos = (GenericPos + 1) & 0x1F; //Every 4 ticks
+	
+	if ( Level.TimeSeconds - LastTimeSeconds > 0.25 * Level.TimeDilation ) //Frame took over 0.25 second!!! (game was paused/server frame drop)
+	{
+		TimeOffset = (Level.TimeSeconds - LastTimeSeconds) - DeltaTime;
+		ForEach AllActors( class'XC_PosList', PosList) //Corrects generic ones as well
+			PosList.CorrectTimeStamp( TimeOffset );
+		For ( LCComp=ffCompList ; LCComp!=None ; LCComp=LCComp.ffCompNext )
+			LCComp.ResetTimeStamp();
+	}
+	LastTimeSeconds = Level.TimeSeconds;
 }
 
 
@@ -156,28 +168,29 @@ function ffCollidePlayers( private bool ffEnable)
 			ffTmp.ffSetCollision();
 }
 
-function bool ffInsertNewPlayer( private pawn ffOther)
+function bool ffInsertNewPlayer( Pawn NewPlayer)
 {
 	local private XC_LagCompensator ffTmp;
 	
-	if ( ffOther == none )
+	if ( NewPlayer == none )
 		return false;
-	ffTmp = Spawn( class'XC_LagCompensator', ffOther);
-	ffTmp.ffOwner = ffOther;
+	ffTmp = Spawn( class'XC_LagCompensator', NewPlayer);
+	ffTmp.ffOwner = NewPlayer;
 	ffTmp.ffCompNext = ffCompList;
 	ffCompList = ffTmp;
 	ffTmp.ffMaster = self;
-	ffTmp.PosList = Spawn(class'XC_PlayerPosList', ffOther);
-	ffTmp.PosList.Master = self;
+	ffTmp.PosList = Spawn(class'XC_PlayerPosList', NewPlayer);
+	ffTmp.PosList.Mutator = self;
 	ffTmp.PosList.ffOwner = ffTmp;
+	ffTmp.PosList.SetOwner(NewPlayer);
 
 	//Register individual ZP controller channel on this playerpawn
-	if ( (PlayerPawn(ffOther) != none) && (NetConnection(PlayerPawn(ffOther).Player) != none) )
+	if ( (PlayerPawn(NewPlayer) != none) && (NetConnection(PlayerPawn(NewPlayer).Player) != none) )
 	{
 		ffTmp.CompChannel = Spawn(class'XC_CompensatorChannel');
 		ffTmp.CompChannel.bNoBinds = bNoBinds;
 		ffTmp.CompChannel.bSimAmmo = bSimulateAmmo;
-		ffTmp.CompChannel.AddPlayer( PlayerPawn(ffOther), self);
+		ffTmp.CompChannel.AddPlayer( PlayerPawn(NewPlayer), self);
 	}
 }
 
@@ -263,11 +276,12 @@ function bool ffUnlagPositions( private XC_LagCompensator ffOther, vector ShootS
 		nani2 = nani2.ffCompNext;
 	}
 	
+	
 	//GENERIC LOOPER NOW!
 	if ( ActiveGen != none )
 	{
-		Slot = DummyGen.FindTopSlot( ffPing);
-		ffDelta = DummyGen.AlphaSlots( Slot, ffPing);
+		Slot = ActiveGen.FindTopSlot( ffPing);
+		ffDelta = ActiveGen.AlphaSlots( Slot, ffPing);
 		For ( GenPos=ActiveGen; GenPos!=none ; GenPos=GenPos.NextG )
 		{
 			if ( GenPos.HasTeleported(Slot))	ffPos = GenPos.GetLoc( Slot);
@@ -276,9 +290,9 @@ function bool ffUnlagPositions( private XC_LagCompensator ffOther, vector ShootS
 			if ( !GenPos.CanHit( ShootStart, ffPos, X, Y, Z) )
 				continue;
 			if ( GenPos.bPingHandicap )
-				GenPos.SetCollisionSize( GenPos.Compensated.CollisionRadius + ffPing * 2, GenPos.Compensated.CollisionHeight + ffPing * 2);
+				GenPos.SetCollisionSize( GenPos.Owner.CollisionRadius + ffPing * 2, GenPos.Owner.CollisionHeight + ffPing * 2);
 			else
-				GenPos.SetCollisionSize( GenPos.Compensated.CollisionRadius, GenPos.Compensated.CollisionHeight);
+				GenPos.SetCollisionSize( GenPos.Owner.CollisionRadius, GenPos.Owner.CollisionHeight);
 			GenPos.SetLocation( ffPos);
 			GenPos.SetCollision( true, false, false);
 			GenPos.bProjTarget = true;
@@ -288,6 +302,7 @@ function bool ffUnlagPositions( private XC_LagCompensator ffOther, vector ShootS
 	return true;
 }
 
+//TODO: USE DYNAMIC ACTORS WITH TAG (PLUS REMOVE TAG AFTER DONE)
 function ffRevertPositions()
 {
 	local private XC_LagCompensator ffTmp;
@@ -340,7 +355,6 @@ function float ffMaxLag()
 {
 	return ffMaxLatency * 0.001 * Level.TimeDilation; //Scale up if game is faster, we'll be operating using just ffDelta on other calculation phases
 }
-//OBFEND
 
 
 function vector WeaponStartTrace( Weapon W)
@@ -403,13 +417,13 @@ function XC_GenericPosList AddGenericPos( Actor Other)
 	else
 	{
 		Tmp = Spawn(class'XC_GenericPosList');
-		Tmp.Master = self;
+		Tmp.Mutator = self;
 	}
 	Tmp.NextG = ActiveGen;
 	if ( ActiveGen != none )
 		ActiveGen.PrevG = Tmp;
 	ActiveGen = Tmp;
-	Tmp.Compensated = Other;
+	Tmp.SetOwner(Other);
 	Tmp.GotoState('Active','Begin');
 	return Tmp;
 }

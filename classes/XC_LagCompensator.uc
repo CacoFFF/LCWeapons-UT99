@@ -18,7 +18,6 @@ var float ffCTimer; //Timer our last shot was fired
 var float ffCTimeStamp; //Timestamp the server is keeping
 var float ffDelayCount;
 var int ffLastPing;
-var float LastTimeSeconds;
 var float ffRefireTimer; //If above shoot * 2, do not fire
 var float ffCurRegTimer; //Current registered timer
 var float ImpreciseTimer; //Give the player an opportunity to miss security checks once in a while
@@ -55,17 +54,12 @@ event Tick( private float ffDelta)
 	if ( (PlayerPawn(ffOwner) != none) && FRand() < 0.4 )
 		ffLastPing = int(PlayerPawn(ffOwner).ConsoleCommand("GETPING"));
 
-	if ( Level.TimeSeconds - LastTimeSeconds > 0.25 * Level.TimeDilation ) //Frame took over 0.25 second!!! (game was paused)
-		ffCorrectTimes( ffDelta);
-
-	LastTimeSeconds = Level.TimeSeconds;
-
 	//Dead
 	if ( ffOwner.Health <= 0 )
 	{
 		ffNoHit = true;
 		ffWeapon = none;
-		ffResetTimeStamp();
+		ResetTimeStamp();
 		return;
 	}
 	ImpreciseTimer = fMax( 0, ImpreciseTimer - ffDelta);
@@ -74,7 +68,7 @@ event Tick( private float ffDelta)
 	if ( ffOwner.Weapon != ffWeapon )
 	{
 		ffWeapon = ffOwner.Weapon;
-		ffResetTimeStamp();
+		ResetTimeStamp();
 	}
 
 	//Client needs correction, shots aren't processed in the mean time
@@ -103,15 +97,6 @@ event Tick( private float ffDelta)
 	ffNoHit = false;
 }
 
-function ffCorrectTimes( private float ffDelta)
-{
-	local private float ffTmp;
-
-	ffTmp = Level.TimeSeconds - LastTimeSeconds;
-	ffTmp -= ffDelta;
-	PosList.CorrectTimeStamp( ffTmp);
-	ffResetTimeStamp();
-}
 
 
 function bool ValidateWeapon( Weapon Weapon, out byte Imprecise)
@@ -126,17 +111,31 @@ function bool ValidateWeapon( Weapon Weapon, out byte Imprecise)
 	return true;
 }
 
-function bool ValidateCylinder( vector HitOffset, float Radius, float Height, out byte Imprecise, out string Error)
+function bool ValidateCylinder( Actor Other, vector HitOffset, vector TraceDir, out byte Imprecise, out string Error)
 {
-	Radius += 3; //Game physics sometimes outputs a hitlocation further away from the cylinder
-	Height += 3;
-	if ( (LCS.static.HSize(HitOffset) > Radius) || (Abs(HitOffset.Z) > Height) )
+	local int i;
+	local float Radius, Height;
+
+	if ( (Other == None) || (Other == Level) || (Other.Brush != None) || Other.IsA('StaticMeshActor') ) //Levels, Movers and StaticMesh (future) are always valid boxes
+		return true;
+
+	Radius = Other.CollisionRadius;
+	Height = Other.CollisionHeight;
+	if ( XC_PosList(Other) != None )
 	{
-		Imprecise = 20;
-		Error = "Hit Offset outside of target cylinder ["$int(HSize(HitOffset))$","$int(Abs(HitOffset.Z))$"]/["$int(Radius)$","$int(Height)$"]";
-		return false;
+		//TODO: GET REALCROUCH STATUS
+		Other = Other.Owner;
+		Radius = Other.CollisionRadius;
+		Height = Other.CollisionHeight;
 	}
-	return true;
+	TraceDir = Normal(TraceDir);
+	Radius += 1; //Account for rounding errors in HitOffset and TraceDir
+	Height += 1;
+	if ( (LCS.static.HSize(HitOffset) <= Radius) && (Abs(HitOffset.Z) <= Height) )
+		return true;
+	Imprecise = 20;
+	Error = "Hit Offset outside of target cylinder ["$int(LCS.static.HSize(HitOffset))$","$int(Abs(HitOffset.Z))$"]/["$int(Radius)$","$int(Height)$"]";
+	return false;
 }
 
 /*
@@ -414,7 +413,7 @@ function Pawn ffCheckHit( XC_LagCompensator ffOther, private vector ffHit, out v
 	return none;
 }
 
-function ffResetTimeStamp()
+function ResetTimeStamp()
 {
 	ffDelaying = 0;
 	ffDelayCount = 0;

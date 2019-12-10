@@ -1,21 +1,19 @@
 //
 //  Player position holder actor, designed for lag compensation
 ///////////////////////////////////////////////////////////////
-class XC_PlayerPosList expands Info;
+class XC_PlayerPosList expands XC_PosList;
 
 var float STimeStamp[128];
-//var float CTimeStamp[128];
 var float ExtraDist[128];
 var vector SavedLoc[128];
 var int Flags[128];
 //1 - Ghost
 //2 - Duck
 //4 - Teleported
+
 var float LastDeathTimeStamp;
 
-var XC_LagCompensation Master;
 var XC_LagCompensator ffOwner;
-var vector SizeVec;
 
 
 
@@ -24,7 +22,7 @@ event Tick( float DeltaTime)
 	local byte i, j;
 	local int NewFlags;
 
-	i = Master.GlobalPos;
+	i = Mutator.GlobalPos;
 	j = (i - 1) & 0x7F;
 	SavedLoc[i] = ffOwner.ffOwner.Location;
 	ExtraDist[i] = VSize(ffOwner.ffOwner.Velocity) * 0.2;
@@ -36,24 +34,24 @@ event Tick( float DeltaTime)
 		NewFlags += 4;
 	Flags[i] = NewFlags;
 	STimeStamp[i] = Level.TimeSeconds;
-	SizeVec.X = ffOwner.CollisionHeight;
-	SizeVec.Y = ffOwner.CollisionRadius;
+	ActorSphere.X = ffOwner.CollisionHeight;
+	ActorSphere.Y = ffOwner.CollisionRadius;
 }
 
 
 //Top slot is the newer location of said segment
 //This function is super optimized
-function int FindTopSlot( private float ffDelayed) //Time dilation must be applied to ffDelayed
+function int FindTopSlot( float Delayed) //Time dilation must be applied to Delayed
 {
 	local byte i, j;
 	local int count; //0-127... 128 is 0, and we can't return 127 due to requiring the next position
 
-	ffDelayed *= Level.TimeDilation; //Because ping > real time is magnified otherwise
-	j = Master.GlobalPos; //UNDOCUMENTED > WE DON'T KNOW IF MASTER ALREADY TICKED
+	Delayed *= Level.TimeDilation; //Because ping > real time is magnified otherwise
+	j = Mutator.GlobalPos; //UNDOCUMENTED > WE DON'T KNOW IF MASTER ALREADY TICKED
 
 	ADVANCE:
 	i = ByteDiff( j, count += 8 );
-	if ( (Level.TimeSeconds - STimeStamp[i]) < ffDelayed )
+	if ( (Level.TimeSeconds - STimeStamp[i]) < Delayed )
 	{
 		if ( count < 120 )
 			Goto ADVANCE;
@@ -61,7 +59,7 @@ function int FindTopSlot( private float ffDelayed) //Time dilation must be appli
 		While ( ++count < 127 )
 		{
 			i = ByteDiff( j, count);
-			if ( (Level.TimeSeconds - STimeStamp[i]) > ffDelayed )
+			if ( (Level.TimeSeconds - STimeStamp[i]) > Delayed )
 				return ByteDiff( j, count-1);
 		}
 		return ByteDiff( j, 126); //Hardcoded
@@ -71,7 +69,7 @@ function int FindTopSlot( private float ffDelayed) //Time dilation must be appli
 	While ( (++count % 8) != 0 )
 	{
 		i = ByteDiff(j,count);
-		if ( (Level.TimeSeconds - STimeStamp[i]) > ffDelayed )
+		if ( (Level.TimeSeconds - STimeStamp[i]) > Delayed )
 			return ByteDiff(j,count-1);
 	}
 	return ByteDiff(j,count-1); //Means the %8 was the right one
@@ -142,18 +140,6 @@ function bool HasDucked( byte Slot)
 function bool IsHittable( byte Slot, float ShotTimeStamp)
 {
 	return ((Flags[Slot] & 1) == 0) && (ShotTimeStamp >= LastDeathTimeStamp); //Equal preffered to avoid floating point truncation at high numbers
-}
-
-//TheLoc should be my past location
-function bool CanHit( vector Start, vector TheLoc, vector X, vector Y, vector Z)
-{
-	TheLoc -= Start;
-	if ( TheLoc dot X < 0 )
-		return false;
-	X.X = 0;
-	X.Y = TheLoc dot Y;
-	X.Z = TheLoc dot Z;
-	return VSize(X) <= VSize(SizeVec);
 }
 
 

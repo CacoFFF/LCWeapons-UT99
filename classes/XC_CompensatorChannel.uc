@@ -82,6 +82,13 @@ replication
 		SetLC, ffSendHit, RequestSWJumpPads, RequestPCap;
 }
 
+static final operator(22) Actor | ( Actor A, Actor B)
+{
+	if ( A != None )
+		return A;
+	return B;
+}
+
 //Saves hit info, processes after movement physics occurs, do simplest of checks
 //This function never arrives earlier than corresponding ServerMove
 //But another later ServerMove may arrive after this one
@@ -99,6 +106,11 @@ function ffSendHit
 )
 {
 	HitOffset /= 10;
+	
+	//Filter against Actor channel redirection (easy mode: do not target actors that are impossible to hit from clients)
+	if ( (ffOther != None) && (ffOther.bNetTemporary || !ffOther.bCollideActors) )
+		return;
+	
 //	Log("ffSendHit:"@ffOther.Name@Weap.Name@ffHit@HitOffset@CmpRot@ShootFlags@ffAccuracy);
 	if ( ffISaved > 8 || !bUseLC 
 		|| (Weap == none) || (CurWeapon != Weap) || Weap.IsInState('DownWeapon') )
@@ -167,6 +179,7 @@ function ProcessHitList()
 
 function bool ProcessHit( out ShotData Data)
 {
+	local XC_PosList PosList;
 	local XC_LagCompensator TargetComp;
 	local vector X, Y, Z, HitNormal, EndTrace;
 	local float Range, CalcPing;
@@ -209,29 +222,25 @@ function bool ProcessHit( out ShotData Data)
 			TargetComp = LCActor.ffFindCompFor( Pawn(Data.ffOther));
 			if ( (TargetComp == None) && Pawn(Data.ffOther).bIsPlayer ) //Players MUST have a compensator, monsters and others not (for now)
 				Data.ffOther = None;
+			if ( TargetComp != None )
+				PosList = TargetComp.PosList;
+
 		}
 		//TODO: USE A GENERIC MONSTER COMPENSATOR
 		if ( (Data.ffOther != None) && (TargetComp == None) )
 		{
 		}
+		
 	}
 	
 	//Validate actor Box
 	if ( !Data.bBoxValidated )
 	{
-		if ( (Data.ffOther == None) || (Data.ffOther.Brush != None) ) //Levels and movers are always valid boxes
-		{}
-		else
-		{
-			TargetRadius = Data.ffOther.CollisionRadius;
-			TargetHeight = Data.ffOther.CollisionHeight;
-			// TODO: Support RealCrouch (as seen in ONP)
-			if ( !LCComp.ValidateCylinder( Data.ffOff, TargetRadius, TargetHeight, Data.Imprecise, Data.Error) )
-				return false;
-			// Pawns need to validate crouch state, and override hit offset
-//			if ( (Pawn(Data.ffOther) != None) && !LCComp.ValidatePawnHit( Pawn(Data.ffOther), Data.ffOff, Data.ffHit - Data.StartTrace, Data.Imprecise, Data.Error) )
-//				return false;
-		}
+		if ( !LCComp.ValidateCylinder( PosList|Data.ffOther, Data.ffOff, Data.ffHit-Data.StartTrace, Data.Imprecise, Data.Error) )
+			return false;
+		// Pawns need to validate crouch state, and override hit offset
+//		if ( (Pawn(Data.ffOther) != None) && !LCComp.ValidatePawnHit( Pawn(Data.ffOther), Data.ffOff, Data.ffHit - Data.StartTrace, Data.Imprecise, Data.Error) )
+//			return false;
 		Data.bBoxValidated = true;
 	}
 

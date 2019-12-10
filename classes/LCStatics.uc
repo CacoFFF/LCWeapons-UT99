@@ -118,28 +118,54 @@ static final function ClientTraceFire( Weapon Weapon, XC_CompensatorChannel LCCh
 //*************************
 static final function Actor ClientTraceShot( out vector HitLocation, out vector AdjustedHitLocation, out vector HitNormal, vector EndTrace, vector StartTrace, Pawn P)
 {
-	local Actor A;
+	local Actor A, HitActor;
+	local vector TmpHitLocation, TmpHitNormal;
+	local bool bCorrectHitLocation;
 	
 	if ( P == None )
 		return None;
-		
-	ForEach P.TraceActors( class'Actor', A, HitLocation, HitNormal, EndTrace, StartTrace)
-	{
-		AdjustedHitLocation = HitLocation;
-		if ( TraceStopper( A) )
-			return A;
-		else if ( Pawn(A) != None )
-		{
-			if ( (A != P) && AdjustHitLocationMod( Pawn(A), AdjustedHitLocation, EndTrace-StartTrace) )
-				return A;
-		}
-		else if ( A.bProjTarget || (A.bBlockActors && A.bBlockPlayers) )
-			return A;
-	}
+	
+	HitActor = None;
 	HitLocation = EndTrace;
-	AdjustedHitLocation = EndTrace;
 	HitNormal = Normal( StartTrace - EndTrace);
-	return None;
+	AdjustedHitLocation = EndTrace;
+	ForEach P.TraceActors( class'Actor', A, TmpHitLocation, TmpHitNormal, EndTrace, StartTrace)
+	{
+		if ( HitActor == None )
+		{
+			if ( TraceStopper( A) )
+				HitActor = A;
+			else if ( Pawn(A) != None )
+			{
+				if ( (A != P) && AdjustHitLocationMod( Pawn(A), AdjustedHitLocation, EndTrace-StartTrace) )
+					HitActor = A;
+			}
+			else if ( A.bProjTarget || (A.bBlockActors && A.bBlockPlayers) )
+				HitActor = A;
+				
+			if ( HitActor != None )
+			{
+				bCorrectHitLocation = (HitActor != P.Level) && (HitActor.Brush == None) && !HitActor.IsA('StaticMeshActor');
+				HitLocation = TmpHitLocation;
+				HitNormal = TmpHitNormal;
+				AdjustedHitLocation = TmpHitLocation;
+			}
+		}
+		
+		//Correct HitLocation by adding the missing 1/1000th part on Cylinder actors
+		if ( (A == P.Level) && bCorrectHitLocation )
+		{
+			HitLocation += (TmpHitLocation - StartTrace) * 0.001;
+			return HitActor;
+		}
+	}
+	//Correct HitLocation by adding the missing 1/1000th part on Cylinder actors
+	if ( bCorrectHitLocation )
+		HitLocation += (EndTrace - StartTrace) * 0.001;
+	//Level is never passed as valid hit
+	if ( HitActor == P.Level )
+		HitActor = None;
+	return HitActor;
 }
 
 //************************************
@@ -442,15 +468,10 @@ static final function Actor CompensatedHitActor( Actor Other, out vector HitLoca
 {
 	if ( Other == none || Other.bIsPawn || Other == Other.Level ) //Super fast checks
 		return Other; //Should deprecate
-	if ( XC_LagCompensator(Other) != none )
+	if ( (XC_PosList(Other) != None) && (Other.Owner != None) )
 	{
-		HitLocation += XC_LagCompensator(Other).ffOwner.Location - Other.Location;
-		return XC_LagCompensator(Other).ffOwner;
-	}
-	if ( XC_GenericPosList(Other) != none )
-	{
-		HitLocation += XC_GenericPosList(Other).Compensated.Location - Other.Location;
-		return XC_GenericPosList(Other).Compensated;
+		HitLocation += Other.Owner.Location - Other.Location;
+		return Other.Owner;
 	}
 	return Other;
 }
