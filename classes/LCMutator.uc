@@ -83,7 +83,7 @@ function bool IsRelevant( Actor Other, out byte bSuperRelevant)
 
 	if ( ScriptedPawn(Other) != None )
 	{
-		AddGenericPos( Other);
+		SetupPosList( Other );
 		return true;
 	}
 

@@ -6,11 +6,11 @@ class XC_LagCompensator expands Info;
 
 const LCS = class'LCStatics';
 
-var XC_LagCompensation ffMaster;
+var XC_LagCompensation Mutator;
 var XC_LagCompensator ffCompNext;
 var XC_CompensatorChannel CompChannel;
 var Pawn ffOwner;
-var XC_PlayerPosList PosList;
+var XC_PosList PosList;
 var bool ffNoHit; //Fast access
 var int ffDelaying; //We're delaying hits in order to fix our time formula
 var Weapon ffWeapon;
@@ -23,21 +23,6 @@ var float ffCurRegTimer; //Current registered timer
 var float ImpreciseTimer; //Give the player an opportunity to miss security checks once in a while
 
 var private bool ffCollideActors, ffBlockActors, ffBlockPlayers, ffProjTarget;
-var int ffMyShit;
-
-struct XC_PlayerMove
-{
-	var vector Location;
-	var rotator View;
-	var float Timestamp;
-};
-
-struct XC_PlayerPos
-{
-	var() vector Location;
-	var() float ExtraDist;
-};
-
 
 
 event Tick( private float ffDelta)
@@ -178,9 +163,11 @@ function bool ValidatePlayerView( float ClientTimeStamp, vector StartTrace, int 
 	{
 		if ( LCS.static.CompareRotation( ServerView, ClientView) ) //Perfect match (stationary view)
 		{}
+		else if ( (ServerView.Pitch == 0) && (ServerView.Yaw == 0) && (ServerView.Roll == 0) ) //v469 is doing weird things here
+		{}
 		else if ( LCS.static.ContainsRotator( ClientView, Player.ViewRotation, CompChannel.OldView, 0.5) ) //Contained in move area
 			Imprecise++;
-		else
+		else if ( (ServerView.Pitch != 0) && (ServerView.Yaw != 0) && (ServerView.Roll != 0) )
 		{
 			Error = "ROTATION INCONSISTENCY"@ServerView@ClientView;
 			return false;
@@ -329,88 +316,93 @@ function bool ffClassifyShot( private float ffClientTimeS)
 	return true;
 }
 
-function Pawn ffCheckHit( XC_LagCompensator ffOther, private vector ffHit, out vector HitOffset, private rotator ffView)
+function Pawn ffCheckHit( XC_LagCompensator ffOther, vector HitLocation, out vector HitOffset, private rotator ffView, out string Error)
 {
-	local private float ffPing, ffBox;
-	local private XC_PlayerPos ffFirst, ffLast;
+	local private float ffBox;
 	local private vector ffProj;
-	local private float ffTmp;
+	local vector RealPosition, ClientPosition, PositionDiff, RealVelocity;
 	local Pawn Other;
-	local bool bImageDropping;
-	local byte Slot;
+	local int Index, IndexNext;
+	local bool bPassAdjustHitLocation;
 
 	Assert( ffOther != None );
-	
 	Other = ffOther.ffOwner;
 	Assert( Other != None );
 		
-	if ( !FastTrace( ffHit, ffOwner.Location + vect(0,0,1) * ffOwner.BaseEyeHeight) )  //Amplify!!!
-		return none;
-
-	ffPing = float(ffLastPing) / 1000.0;
-//	ffError = 0.019 + ffPing * 0.11; //If we have 200 ping, error is of 41; a base of 19 is added for server tickrate unreliability
-// Old error, may be reused later
-
-	ffHit -= HitOffset;
-
-	ffBox = VSize( vect(1,0,0) * Other.CollisionHeight + vect(0,1,0) * Other.CollisionRadius);
-	ffBox *= 1.2; //Main tweak
-	ffBox += VSize( Other.Location - Other.OldLocation ); //Moving? Increase box size
-	if ( VSize(Other.Velocity) > 600 )
-		ffBox *= 1 + (VSize(Other.Velocity) - 600) / 1500; //if velocity is 2500 (terminal), error is multiplied by almost 3 (super booster hit ensured)
-
-	//Find the 2 slotted locs we're using
-	Slot = ffOther.PosList.FindTopSlot( ffPing);
-	ffFirst = ConvertPSlot( ffOther.PosList, Slot);
-	ffLast = ConvertPSlot( ffOther.PosList, (Slot-1)&0x7F);
-	
-	//Apply duck validation (TODO: Move to general validation checks)
-	if ( ffOther.PosList.HasDucked( Slot) )
+	if ( !FastTrace( HitLocation, ffOwner.Location + vect(0,0,1) * ffOwner.BaseEyeHeight) )  //Amplify!!!
 	{
-		if ( HitOffset.Z > 0 ) //Adjust downward to make up for rounding
-			HitOffset.Z -= 0.1;
-		HitOffset += Other.Location;
-		if ( !LCS.static.AdjustHitLocationMod( Other, HitOffset, vector(ffView), (Other.default.BaseEyeHeight+1) * 0.1) )
-		{
-			HitOffset -= Other.Location;
-			Log("DUCK REJECT"@HitOffset, 'LagCompensator' );
-			return none; //Shot went through
-		}
-		HitOffset -= Other.Location;
+		Error = "Visibility check failed";
+		return none;
 	}
 
-	if ( VSize( ffFirst.Location - ffHit) > (ffBox * 2 + ffFirst.ExtraDist + ffLast.ExtraDist) )	//Aim error is huge
+	//Obtain position slots
+	Mutator.Marker[0] = Mutator.GetOldPositionIndex( GetLatency() );
+	Index = Mutator.Marker[0].Index;
+	IndexNext = Mutator.Marker[0].IndexNext;
+	ClientPosition = HitLocation - HitOffset;
+	RealPosition = ffOther.PosList.GetOldPosition( Index, IndexNext, Mutator.Marker[0].Alpha );
+	RealVelocity = ffOther.PosList.GetVelocity( Index, IndexNext );
+	PositionDiff = RealPosition - ClientPosition;
+
+	ffBox = VSize( ffOther.PosList.GetExtent(Mutator.Marker[0].Index) );
+	ffBox *= 1.2; //Main tweak
+	ffBox += VSize( RealVelocity * Mutator.PositionStep ); //Moving? Increase box size
+	if ( VSize(RealVelocity) > 600 )
+		ffBox *= 1 + (VSize(RealVelocity) - 600) / 1500; //if velocity is 2500 (terminal), error is multiplied by almost 3 (super booster hit ensured)
+	
+	//Apply AdjustHitLocation validation (try passing in multiple ways)
+	if ( HitOffset.Z > 0 ) //Adjust downward to make up for rounding
+		HitOffset.Z -= 0.1;
+	HitOffset += Other.Location;
+	bPassAdjustHitLocation = LCS.static.AdjustHitLocationMod( Other, HitOffset, vector(ffView), ffOther.PosList.EyeHeight[Index]);
+	if ( !bPassAdjustHitLocation && (IndexNext >= 0) ) //Fail, try passing with next slot
+		bPassAdjustHitLocation = LCS.static.AdjustHitLocationMod( Other, HitOffset, vector(ffView), ffOther.PosList.EyeHeight[IndexNext]);
+	if ( !bPassAdjustHitLocation && (IndexNext < 0) ) //Fail, try passing with current player state
+		bPassAdjustHitLocation = LCS.static.AdjustHitLocationMod( Other, HitOffset, vector(ffView));
+	if ( !bPassAdjustHitLocation )
 	{
-		if ( !ImageDropping(Other, (ffFirst.Location - ffHit) * 0.5) ) //Target is image dropping, analyse after
+		HitOffset -= Other.Location;
+		Error = "Ducking player inconsistency";
+		return None; //Shot went through
+	}
+	HitOffset -= Other.Location;
+
+	
+	if ( VSize(PositionDiff) > (ffBox * 2 + VSize(RealVelocity) * 0.4) )	//Aim error is huge
+	{
+		if ( !ImageDropping(Other, PositionDiff * 0.5) ) //Target is image dropping, analyse after
 		{
-			Log("Fail on pass 1: "$VSize( ffFirst.Location - ffHit)$" is the failed size", 'LagCompensator');
+			Log("Fail on pass 1: "$VSize(PositionDiff)$" is the failed size", 'LagCompensator');
 			return none;
 		}
 	}
 
-	//Check if both segments are in the same point
-	ffTmp = FixMathDist( ffFirst.Location, ffLast.Location );
-	if ( ffTmp < 3 )
+	if ( VSize(RealVelocity) < 20 )
 	{
-		if ( (VSize( ffFirst.Location - ffHit) < ffBox) || ImageDropping(Other, ffFirst.Location - ffHit) ) //Single box
+		//Check if stationary Target is in position
+		if ( (VSize(PositionDiff) < ffBox) || ImageDropping(Other,PositionDiff) ) //Single box
 			return Other;
-		Log("Fail on pass 2.5: "$ffBox$" is the ffBox size, "$ VSize( ffFirst.Location - ffHit) $" is the point distance", 'LagCompensator');
+		Log("Fail on pass 3: "$ffBox$" is the ffBox size, "$ VSize(PositionDiff) $" is the point distance", 'LagCompensator');
 	}
-	//Get orthogonal projection from hit location in our segment
-	ffProj = ffFirst.Location + Normal( ffLast.Location - ffFirst.Location ) * ((( ffLast.Location - ffFirst.Location ) dot ( ffHit - ffFirst.Location )) / ffTmp);
-	if ( VSize(ffProj - ffHit) < ffBox * 1.2 + 10) //120% box (plus 10), simulation on low TR servers is horrible
-		return Other;
-	Log("Fail on pass 3: "$ffBox$" is the ffBox size, "$VSize(ffProj - ffHit)$" is the projection distance", 'LagCompensator');
-	//Math problem, do full log here
-	if ( LCS.static.Badfloat( VSize(ffProj-ffHit)) )
+	else
 	{
-		return Other; //Fuck it
-		Log("MATH PROBLEM!"@ ffProj @ "is projection",'LagCompensator');
-		Log("MATH PROBLEM!"@ ffHit @ "is HIT",'LagCompenstor');
-		Log("MATH PROBLEM!"@ ffFirst.Location @ "is Start loc",'LagCompensator');
-		Log("MATH PROBLEM!"@ ffLast.Location @ "is End loc",'LagCompensator');
+		//Check if moving target is near the movement line
+		RealVelocity = Normal(RealVelocity); //We only need the direction now
+		ffProj = RealPosition + RealVelocity * (RealVelocity dot (ClientPosition-RealPosition));
+		if ( VSize(ffProj - ClientPosition) < ffBox * 1.2 + 10) //120% box (plus 10), simulation on low TR servers is horrible
+			return Other;
+		//Math problem
+		if ( LCS.static.Badfloat( VSize(ffProj-ClientPosition)) )
+			return Other;
 	}
+	
+	Error = "Failed to pass";
 	return none;
+}
+
+function float GetLatency()
+{
+	return float(ffLastPing) / 1000.0;
 }
 
 function ResetTimeStamp()
@@ -422,16 +414,6 @@ function ResetTimeStamp()
 	ffRefireTimer = 0;
 	ImpreciseTimer = 0;
 }
-
-function XC_PlayerPos ConvertPSlot( XC_PlayerPosList List, int Slot)
-{
-	local XC_PlayerPos Pos;
-	
-	Pos.Location = List.GetLoc( Slot);
-	Pos.ExtraDist = List.GetEDist(Slot);
-	return Pos;
-}
-
 
 function ffGetCollision()
 {
@@ -460,11 +442,11 @@ event Destroyed()
 	if ( PosList != none )
 		PosList.Destroy();
 
-	if ( ffMaster.ffCompList == self )
-		ffMaster.ffCompList = ffCompNext;
+	if ( Mutator.ffCompList == self )
+		Mutator.ffCompList = ffCompNext;
 	else
 	{
-		For ( ffTmp=ffMaster.ffCompList ; ffTmp!=none ; ffTmp=ffTmp.ffCompNext )
+		For ( ffTmp=Mutator.ffCompList ; ffTmp!=none ; ffTmp=ffTmp.ffCompNext )
 			if ( ffTmp.ffCompNext == self )
 			{
 				ffTmp.ffCompNext = ffCompNext;
@@ -474,7 +456,6 @@ event Destroyed()
 			}
 	}
 }
-//OBFEND
 
 function bool ImageDropping( Pawn Other, vector HitDir)
 {
@@ -483,21 +464,7 @@ function bool ImageDropping( Pawn Other, vector HitDir)
 	return Normal(HitDir).Z > 0.75; //40º angle fall	
 }
 
-//Attempt to fix math errors with substracting vectors in V451
-function float FixMathDist( vector A, vector B)
-{
-	local int i;
-	i = A.X;
-	i -= int(B.X);
-	A.X = i;
-	i = A.Y;
-	i -= int(B.Y);
-	A.Y = i;
-	i = A.Z;
-	i -= int(B.Z);
-	A.Z = i;
-	return VSize( A);
-}
+
 
 defaultproperties
 {

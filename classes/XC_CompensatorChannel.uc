@@ -118,7 +118,7 @@ function ffSendHit
 
 	if ( !LCComp.ffClassifyShot(ffTime) ) //Time classification failure
 		return;
-		
+
 	SavedShots[ffISaved].ffOther = ffOther;
 	SavedShots[ffISaved].Weap = Weap;
 	SavedShots[ffISaved].ffTime = ffTime;
@@ -255,7 +255,7 @@ function bool ProcessHit( out ShotData Data)
 	}
 
 	if ( TargetComp != None )
-		Data.ffOther = LCComp.ffCheckHit( TargetComp, Data.ffHit, Data.ffOff, class'LCStatics'.static.DecompressRotator(Data.CmpRot) );
+		Data.ffOther = LCComp.ffCheckHit( TargetComp, Data.ffHit, Data.ffOff, class'LCStatics'.static.DecompressRotator(Data.CmpRot), Data.Error );
 
 	if ( Data.Imprecise >= 2 )
 	{

@@ -5,10 +5,10 @@
 class LCStatics expands Object
 	abstract;
 
-#exec OBJ LOAD FILE="LCPureUtil.u" PACKAGE=LCWeapons_0023
-#exec OBJ LOAD FILE="SiegeUtil_A.u" PACKAGE=LCWeapons_0023
-#exec OBJ LOAD FILE="TimerUtil.u" PACKAGE=LCWeapons_0023
-#exec OBJ LOAD FILE="LCExtraFuncs.u" PACKAGE=LCWeapons_0023
+#exec OBJ LOAD FILE="LCPureUtil.u" PACKAGE=LCWeapons_0024
+#exec OBJ LOAD FILE="SiegeUtil_A.u" PACKAGE=LCWeapons_0024
+#exec OBJ LOAD FILE="TimerUtil.u" PACKAGE=LCWeapons_0024
+#exec OBJ LOAD FILE="LCExtraFuncs.u" PACKAGE=LCWeapons_0024
 
 const MULTIPLIER = 0x015a4e35;
 const INCREMENT = 1;
@@ -119,7 +119,7 @@ static final function ClientTraceFire( Weapon Weapon, XC_CompensatorChannel LCCh
 static final function Actor ClientTraceShot( out vector HitLocation, out vector AdjustedHitLocation, out vector HitNormal, vector EndTrace, vector StartTrace, Pawn P)
 {
 	local Actor A, HitActor;
-	local vector TmpHitLocation, TmpHitNormal;
+	local vector TmpHitLocation, TmpHitNormal, TmpAdjustedHitLocation;
 	local bool bCorrectHitLocation;
 	
 	if ( P == None )
@@ -133,11 +133,12 @@ static final function Actor ClientTraceShot( out vector HitLocation, out vector 
 	{
 		if ( HitActor == None )
 		{
+			TmpAdjustedHitLocation = TmpHitLocation;
 			if ( TraceStopper( A) )
 				HitActor = A;
 			else if ( Pawn(A) != None )
 			{
-				if ( (A != P) && AdjustHitLocationMod( Pawn(A), AdjustedHitLocation, EndTrace-StartTrace) )
+				if ( (A != P) && AdjustHitLocationMod( Pawn(A), TmpAdjustedHitLocation, EndTrace-StartTrace) )
 					HitActor = A;
 			}
 			else if ( A.bProjTarget || (A.bBlockActors && A.bBlockPlayers) )
@@ -148,14 +149,16 @@ static final function Actor ClientTraceShot( out vector HitLocation, out vector 
 				bCorrectHitLocation = (HitActor != P.Level) && (HitActor.Brush == None) && !HitActor.IsA('StaticMeshActor');
 				HitLocation = TmpHitLocation;
 				HitNormal = TmpHitNormal;
-				AdjustedHitLocation = TmpHitLocation;
+				AdjustedHitLocation = TmpAdjustedHitLocation;
 			}
 		}
 		
-		//Correct HitLocation by adding the missing 1/1000th part on Cylinder actors
-		if ( (A == P.Level) && bCorrectHitLocation )
+		
+		if ( A == P.Level )
 		{
-			HitLocation += (TmpHitLocation - StartTrace) * 0.001;
+			//Correct HitLocation by adding the missing 1/1000th part on Cylinder actors
+			if ( bCorrectHitLocation )
+				HitLocation += (TmpHitLocation - StartTrace) * 0.001;
 			return HitActor;
 		}
 	}
@@ -230,13 +233,8 @@ static final function bool AdjustHitLocationMod( Pawn Other, out vector HitLocat
 	local bool bHit, bDumbProxy, bSimulatedProxy;
 	
 	//See if EyeHeight should be modified (if not pre-modified by caller)
-	if ( (ForceEyeHeight == 0) && (Other.Mesh != None) && Other.HasAnim(Other.AnimSequence) )
-	{
-		if ( (Other.GetAnimGroup(Other.AnimSequence) == 'Ducking') && (Other.AnimFrame > -0.03) )
-			ForceEyeHeight = (Other.default.BaseEyeHeight+1) * 0.1;
-		else if ( InStr(string(Other.AnimSequence),"Dead") != -1 || InStr(string(Other.AnimSequence),"DeathEnd") != -1 )
-			ForceEyeHeight = (Other.default.BaseEyeHeight+1) * -0.1;
-	}
+	if ( ForceEyeHeight == 0 )
+		ForceEyeHeight = GetEyeHeight(Other);
 	
 	//Modify eye height
 	OldEyeHeight     = Other.EyeHeight;
@@ -266,6 +264,26 @@ static final function bool AdjustHitLocationMod( Pawn Other, out vector HitLocat
 	HitLocation = HitLocation + ((TmpHitLocation - HitLocation) dot TraceDir) * TraceDir;
 	
 	return bHit;
+}
+
+//***************************************
+//Client-predictable eye height
+//***************************************
+static final function float GetEyeHeight( Pawn Other)
+{
+	local float ForceEyeHeight;
+	
+	if ( (Other.Mesh != None) && Other.HasAnim(Other.AnimSequence) )
+	{
+		if ( (Other.GetAnimGroup(Other.AnimSequence) == 'Ducking') && (Other.AnimFrame > -0.03) )
+			ForceEyeHeight = (Other.default.BaseEyeHeight+1) * 0.1;
+		else if ( InStr(string(Other.AnimSequence),"Dead") != -1 || InStr(string(Other.AnimSequence),"DeathEnd") != -1 )
+			ForceEyeHeight = (Other.default.BaseEyeHeight+1) * -0.1;
+	}
+	if ( ForceEyeHeight == 0 )
+		ForceEyeHeight = Other.default.BaseEyeHeight;
+
+	return ForceEyeHeight;
 }
 
 

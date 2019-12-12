@@ -7,7 +7,7 @@ var XC_LagCompensation Mutator;
 
 event Actor SpawnNotification( actor A)
 {
-	Mutator.AddGenericPos( A);
+	Mutator.SetupPosList( A);
 	return A;
 }
 
