@@ -288,7 +288,8 @@ function ffUnlagPositions( XC_LagCompensator Compensator, vector ShootStart, rot
 	ShotTimeStamp = Level.TimeSeconds - Latency * Level.TimeDilation;
 	GetAxes( ShootDir,X,Y,Z);
 	ForEach AllActors( class'XC_PosList', PosList, 'ActivePosList') //XC: Use DynamicActors
-		PosList.SetupCollision( ShotTimeStamp, ShootStart, X, Y, Z);
+		if ( PosList != Compensator.PosList )
+			PosList.SetupCollision( ShotTimeStamp, ShootStart, X, Y, Z);
 }
 
 function ffRevertPositions()

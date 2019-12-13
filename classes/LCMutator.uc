@@ -1,11 +1,12 @@
 //Keep all basic weapon replacement and standalone implementations here
 class LCMutator expands XC_LagCompensation;
 
-var Weapon ReplaceThis, ReplaceWith;
+var Weapon ReplaceThis, ReplaceThisWith;
 var LCSpawnNotify ReplaceSN;
 var bool bApplySNReplace;
 var bool bTeamShock;
 var string LoadedClasses;
+
 
 //Find known custom arenas, replace with LC arenas
 event PreBeginPlay()
@@ -42,6 +43,13 @@ function AddMutator(Mutator M)
 		return;
 	}
 
+	if ( LCArenaMutator(M) != None )
+	{
+		LCArenaMutator(M).LCMutator = self;
+		ChainMutatorBeforeThis(M);
+		return;
+	}
+	
 	if ( FV_ColoredShock(M) != none )
 	{
 		bTeamShock = true;
@@ -63,7 +71,6 @@ event PostBeginPlay()
 
 function ModifyPlayer( Pawn Other)
 {
-	local XC_LagCompensator XCLC;
 	Super.ModifyPlayer(Other);
 
 	if ( ffFindCompFor(Other) == none )
@@ -245,8 +252,8 @@ function int DoReplace
 function SetReplace( Weapon Other, Weapon With)
 {
 	ReplaceThis = Other;
-	ReplaceWith = With;
-	if ( ReplaceThis != none && ReplaceWith != none)
+	ReplaceThisWith = With;
+	if ( (ReplaceThis != none) && (ReplaceThisWith != none) )
 		ReplaceSN.ActorClass = ReplaceThis.class;
 	else
 		ReplaceSN.ActorClass = class'LCDummyWeapon';

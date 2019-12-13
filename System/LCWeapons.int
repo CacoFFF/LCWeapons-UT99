@@ -1,3 +1,5 @@
 [Public]
-Object=(Name=LCWeapons_0022.LCMutator,Class=Class,MetaClass=Engine.Mutator,Description="Lag Compensator")
-Object=(Name=LCWeapons_0022.FV_ColoredShock,Class=Class,MetaClass=Engine.Mutator,Description="LC: ColoredShock, Requires Lag Compensator mutator loaded!")
+Object=(Name=LCWeapons_0024.LCMutator,Class=Class,MetaClass=Engine.Mutator,Description="Lag Compensator")
+Object=(Name=LCWeapons_0024.LCComboGib,Class=Class,MetaClass=Engine.Mutator,Description="LC: ComboGib, Requires Lag Compensator mutator loaded!")
+Object=(Name=LCWeapons_0024.FV_ColoredShock,Class=Class,MetaClass=Engine.Mutator,Description="LC: ColoredShock, Requires Lag Compensator mutator loaded!")
+

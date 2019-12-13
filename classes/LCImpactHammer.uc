@@ -3,7 +3,6 @@ class LCImpactHammer expands ImpactHammer;
 var XC_CompensatorChannel LCChan;
 var int LCMode;
 
-var XC_ImpactEvents ImpactEvents;
 var bool bFireRelease;
 var rotator BufferedDir;
 var int ShootFlags;
@@ -20,10 +19,8 @@ simulated event KillCredit( actor Other)
 {
 	if ( XC_CompensatorChannel(Other) != none )
 		LCChan = XC_CompensatorChannel(Other);
-	if ( (Level.NetMode == NM_Client) && (ImpactEvents == none) )
-		ForEach AllActors (class'XC_ImpactEvents', ImpactEvents)
-			break;
 }
+
 simulated function PlayPostSelect()
 {
 	if ( Level.NetMode == NM_Client )
@@ -285,17 +282,15 @@ simulated function ProcessTraceHit( Actor Other, Vector HitLocation, Vector HitN
 
 simulated function PlayerHitVel( vector Momentum)
 {
-	if ( ImpactEvents == none )
-		ImpactEvents = Spawn(class'XC_ImpactEvents');
+	local ECM_ImpactPush Push;
 
 	if (Owner.Physics == PHYS_Walking)
 		Momentum.Z = FMax(Momentum.Z, 0.4 * VSize(Momentum));
 	Momentum = Momentum * 0.6 / Owner.Mass;
 
-	ImpactEvents.AddNewPush( Momentum);
-	Owner.Velocity += Momentum;
-	if ( Owner.Physics == PHYS_Walking )
-		Owner.SetPhysics( PHYS_Falling);
+	Push = Spawn( class'ECM_ImpactPush');
+	if ( Push != None )
+		Push.SetupPush( Momentum);
 }
 
 

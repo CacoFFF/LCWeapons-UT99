@@ -11,6 +11,7 @@ var int LCMode;
 var bool bLoaderSetup;
 var bool bNoAmmoDeplete;
 var bool bTeamColor;
+var bool bLolRifle;
 var bool bCombo;
 var bool bInstantFlash;
 var float ffRefireTimer; //This will enforce security checks
@@ -23,7 +24,7 @@ var class<Effects> ExplosionClass;
 replication
 {
 	reliable if ( Role == ROLE_Authority )
-		bTeamColor;
+		bTeamColor, bLolRifle;
 }
 
 
@@ -249,6 +250,8 @@ simulated function EditBeam( ShockBeam Beam)
 		FV_AdaptiveBeam(Beam).AdaptFrom( BeamPrototype);
 	if ( bTeamColor )
 		Beam.Texture = Class'FVTeamShock'.default.BeamTex[ Class'LCStatics'.static.FVTeam( Pawn(Owner)) ];
+	if ( bLolRifle )
+		Beam.DrawScale *= 0.3;
 }
 
 simulated function EditExplosion( Effects Explo)

@@ -30,54 +30,52 @@ var bool bForceCustomXLoc;
 var string wProp[8], wValue[8];
 var int iWp;
 
-function Weapon GiveWeapon( Pawn PlayerPawn, class<Weapon> WeaponClass )
+function Weapon GiveWeapon( Pawn PlayerPawn, class<Weapon> WeaponClass, optional bool bNoProps )
 {
+	local int i;
 	local Weapon NewWeapon;
 
-	newWeapon = Weapon(PlayerPawn.FindInventoryType(WeaponClass));
-	if ( newWeapon != None )
-		return newWeapon;
-	newWeapon = Spawn(WeaponClass);
-	if( newWeapon != None )
+	NewWeapon = Weapon(PlayerPawn.FindInventoryType(WeaponClass));
+	if ( NewWeapon == None )
 	{
-		if ( LCMutator.bTeamShock && (newWeapon.Class == class'LCShockRifle') )
-			newWeapon.SetPropertyText("bTeamColor", "1" ); //Not the best implementation
-		newWeapon.RespawnTime = 0.0;
-		newWeapon.GiveTo(PlayerPawn);
-		newWeapon.bHeldItem = true;
-		newWeapon.GiveAmmo(PlayerPawn);
-		newWeapon.SetSwitchPriority(PlayerPawn);
-		newWeapon.WeaponSet(PlayerPawn);
-		newWeapon.AmbientGlow = 0;
-		if ( PlayerPawn.IsA('PlayerPawn') )
-			newWeapon.SetHand(PlayerPawn(PlayerPawn).Handedness);
-		else
-			newWeapon.GotoState('Idle');
-		PlayerPawn.Weapon.GotoState('DownWeapon');
-		PlayerPawn.PendingWeapon = None;
-		PlayerPawn.Weapon = newWeapon;
-		return newWeapon;
+		NewWeapon = Spawn(WeaponClass);
+		if( NewWeapon != None )
+		{
+			if ( LCMutator.bTeamShock && (NewWeapon.Class == class'LCShockRifle') )
+				NewWeapon.SetPropertyText("bTeamColor", "1" ); //Not the best implementation
+			NewWeapon.RespawnTime = 0.0;
+			NewWeapon.GiveTo(PlayerPawn);
+			NewWeapon.bHeldItem = true;
+			NewWeapon.GiveAmmo(PlayerPawn);
+			NewWeapon.SetSwitchPriority(PlayerPawn);
+			NewWeapon.WeaponSet(PlayerPawn);
+			NewWeapon.AmbientGlow = 0;
+			if ( PlayerPawn.IsA('PlayerPawn') )
+				NewWeapon.SetHand(PlayerPawn(PlayerPawn).Handedness);
+			else
+				NewWeapon.GotoState('Idle');
+			PlayerPawn.Weapon.GotoState('DownWeapon');
+			PlayerPawn.PendingWeapon = None;
+			PlayerPawn.Weapon = NewWeapon;
+		}
 	}
+	if ( !bNoProps && (NewWeapon != None) )
+		While ( i<iWp )
+		{
+			NewWeapon.SetPropertyText( wProp[i], wValue[i]);
+			i++;
+		}
+	
+	return NewWeapon;
 }
 
 
 function ModifyPlayer( Pawn Other)
 {
-	local Weapon W;
-	local int i;
-
 	if ( bForceCustomXLoc && ((DeathMatchPlus(Level.Game) == none) || !DeathMatchPlus(Level.Game).bUseTranslocator) )
-		GiveWeapon( Other, CustomXLocClass);
+		GiveWeapon( Other, CustomXLocClass, true);
 	if ( bGiveWeaponOnSpawn )
-	{
-		W = GiveWeapon( Other, MainWeapClass);
-		if ( W != none )
-			While ( i<iWp )
-			{
-				W.SetPropertyText( wProp[i], wValue[i]);
-				i++;
-			}
-	}
+		GiveWeapon( Other, MainWeapClass);
 
 	if ( NextMutator != None )
 		NextMutator.ModifyPlayer(Other);

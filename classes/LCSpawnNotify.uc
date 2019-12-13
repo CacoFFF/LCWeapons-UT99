@@ -14,10 +14,10 @@ Begin:
 
 event Actor SpawnNotification( actor A)
 {
-	if ( (Mutator.ReplaceThis == A) && (Mutator.ReplaceWith != none) )
+	if ( (Mutator.ReplaceThis == A) && (Mutator.ReplaceThisWith != none) )
 	{
 		A.Destroy();
-		A = Mutator.ReplaceWith;
+		A = Mutator.ReplaceThisWith;
 		Mutator.SetReplace(none,none);
 	}
 	return A;

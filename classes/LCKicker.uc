@@ -30,6 +30,9 @@ function LCKicker ServerSetup( Kicker Other)
 
 simulated event PostNetBeginPlay()
 {
+	//UT v469 doesn't need LCKickers
+	if ( int(Level.EngineVersion) >= 469 )
+		LifeSpan = 0.1;
 	SetCollision( True, False, False);
 	SetTimer( 1, false);
 }
