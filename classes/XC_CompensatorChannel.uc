@@ -27,7 +27,7 @@ var int CurrentSWJumpPad;
 var int ClientPredictCap;
 
 var bool bClientPendingWeapon;
-var bool bUseLC;
+var bool bUseLC; //Mirror: bCarriedItem
 var bool bSimAmmo;
 //If LC is globally disabled, this actor won't exist
 var bool bDelayedFire;
@@ -105,16 +105,21 @@ function ffSendHit
 	optional float ffAccuracy
 )
 {
+	local int LCMode;
 	HitOffset /= 10;
 	
 	//Filter against Actor channel redirection (easy mode: do not target actors that are impossible to hit from clients)
 	if ( (ffOther != None) && (ffOther.bNetTemporary || !ffOther.bCollideActors) )
 		return;
+		
 	
-//	Log("ffSendHit:"@ffOther.Name@Weap.Name@ffHit@HitOffset@CmpRot@ShootFlags@ffAccuracy);
+	//Filter against incorrect parameters
 	if ( ffISaved > 8 || !bUseLC 
-		|| (Weap == none) || (CurWeapon != Weap) || Weap.IsInState('DownWeapon') )
+		|| (Weap == none) || (CurWeapon != Weap) || Weap.IsInState('DownWeapon')
+		|| !class'LCStatics'.static.IsLCWeapon(Weap,LCMode) || (LCMode != 1) )
 		return;
+
+	//Filter against weapon based crashes
 
 	if ( !LCComp.ffClassifyShot(ffTime) ) //Time classification failure
 		return;
@@ -344,6 +349,7 @@ simulated state ClientOp
 	}
 	simulated event Tick( float DeltaTime)
 	{
+		bCarriedItem = bUseLC;
 		if ( ClientWeaponUpdate(DeltaTime) )
 			bJustSwitched = true;
 			
@@ -362,16 +368,7 @@ simulated state ClientOp
 			Log("Channel tick at "$Level.TimeSeconds);
 			bLogTick = false;
 		}
-		if ( bDelayedFire && LCAdv == none ) //No advancer, fire here
-		{
-			CurWeapon.KillCredit( self);
-			bDelayedFire = false;
-		}
-		if ( bDelayedAltFire && LCAdv == none ) //No advancer, alt-fire here
-		{
-			CurWeapon.KillCredit( self);
-			bDelayedAltFire = false;
-		}
+		ClientWeaponFire();
 		ProcessHiFi( DeltaTime);
 	}
 Begin:
@@ -430,6 +427,7 @@ state ServerOp
 			return;
 		}
 		
+		bCarriedItem = bUseLC;
 		ProcessHitList();
 		bHitProcDone = false;
 		
@@ -509,6 +507,51 @@ event Destroyed()
 {
 	if ( (CurWeapon != none) && !CurWeapon.bDeleteMe )
 		CurWeapon.SetPropertyText("LCChan","None");
+}
+
+/****************** Weapon Firing
+ *
+ * ClientWeaponFire   - ZP: Asks weapon if it wants to handle fire, otherwise we do it.
+ * LCTraceShot        - LC: Weapon wants to hit target using old positions.
+*/
+simulated function ClientWeaponFire()
+{
+	local int LCMode;
+
+	if ( (bDelayedFire || bDelayedAltFire) && class'LCStatics'.static.IsLCWeapon(CurWeapon,LCMode)
+	  && !class'LCStatics'.static.HandleLCFire( CurWeapon, bDelayedFire, bDelayedAltFire) )
+	{
+		//LC
+		if ( LCMode == 0 )
+		{
+		}
+		//ZP
+		else if ( LCMode == 1 )
+			class'LCStatics'.static.ClientTraceFire( CurWeapon, self);
+	}
+	bDelayedFire = false;
+	bDelayedAltFire = false;
+}
+
+
+simulated function Actor LCTraceShot( out vector HitLocation, out vector HitNormal, vector EndTrace, vector StartTrace, int LCMode)
+{
+	local Actor HitActor;
+	local vector TraceHitLocation;
+
+	HitActor = None;
+	if ( LCMode == 0 ) //LC sub-engine doesn't need to wait for end of tick
+	{
+		if ( Level.NetMode != NM_Client )
+		{
+			LCActor.ffUnlagPositions( LCComp, StartTrace, rotator(EndTrace-StartTrace) );
+			HitActor = class'LCStatics'.static.LCTrace( HitLocation, HitNormal, EndTrace, StartTrace, Pawn(Owner) );
+			LCActor.ffRevertPositions();
+		}
+		else
+			HitActor = Class'LCStatics'.static.ClientTraceShot( TraceHitLocation, HitLocation, HitNormal, EndTrace, StartTrace, Pawn(Owner));
+	}
+	return HitActor;
 }
 
 

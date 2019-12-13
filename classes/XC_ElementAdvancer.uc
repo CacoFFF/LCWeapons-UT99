@@ -91,16 +91,7 @@ event Tick( float DeltaTime)
 	AdvancePositions( DeltaTime);
 
 	//Fire process after advancement in case I ever decide to mix it again with LC
-	if ( Channel.bDelayedFire ) //No advancer, fire here
-	{
-		Channel.CurWeapon.KillCredit( Channel);
-		Channel.bDelayedFire = false;
-	}
-	if ( Channel.bDelayedAltFire ) //No advancer, fire here
-	{
-		Channel.CurWeapon.KillCredit( Channel);
-		Channel.bDelayedAltFire = false;
-	}	
+	Channel.ClientWeaponFire();
 }
 
 function AdvancePositions( float DeltaTime)
@@ -327,6 +318,8 @@ final function bool ValidTrailer( Actor Trailer)
 //2 means none
 function int AdvanceCode( Weapon Other)
 {
+	local int LCMode;
+
 	if ( Other == none )
 		return 0;
 	if ( Other.Owner != none && Other.Owner.IsA('bbPlayer') ) //UTPURE PLAYER
@@ -334,7 +327,7 @@ function int AdvanceCode( Weapon Other)
 		if ( Left( string(Other.Name), 3) ~= "ST_" ) //This is a newnet weapon
 			return 2;
 	}
-	if ( !Channel.bUseLC || !class'LCStatics'.static.IsLCWeapon(Other) )
+	if ( !Channel.bUseLC || !class'LCStatics'.static.IsLCWeapon(Other,LCMode) )
 		return 0;
 	return 1;
 }

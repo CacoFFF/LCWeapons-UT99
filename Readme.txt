@@ -61,6 +61,7 @@ There's an option in LCWeapons.ini that forces your client to send movement upda
 [Client]
 bHighFidelityMode=True
 
+This package can only be built on UT v469 (Win32) with XC_Core's script compiler enhancements.
 
 =======================
 Made by Fernando Velázquez

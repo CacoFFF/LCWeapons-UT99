@@ -7,6 +7,7 @@ var() int HitDamage;
 var float TapTime;
 
 var XC_CompensatorChannel LCChan;
+var int LCMode;
 var float ffRefireTimer; //This will enforce security checks
 
 var bool bGraphicsInitialized;
@@ -51,15 +52,12 @@ simulated function InitGraphics()
 		Spawn(class'LCSiegeIGLoader').TCL = OrgClass;
 }
 
-simulated event KillCredit( actor Other)
+simulated event KillCredit( Actor Other)
 {
 	if ( XC_CompensatorChannel(Other) != none )
-	{
 		LCChan = XC_CompensatorChannel(Other);
-		if ( LCChan.bDelayedFire )
-			class'LCStatics'.static.ClientTraceFire( self, LCChan);
-	}
 }
+
 simulated function PlayPostSelect()
 {
 	if ( Level.NetMode == NM_Client )
@@ -313,7 +311,14 @@ simulated function bool IsLC()
 {
 	return (LCChan != none) && LCChan.bUseLC && (LCChan.Owner == Owner);
 }
-
+simulated function float GetAimError()
+{
+	return 0;
+}
+final function bool HandleLCFire( bool bFire, bool bAltFire)
+{
+	return false; //LCChan has full control
+}
 
 defaultproperties
 {
@@ -352,4 +357,5 @@ defaultproperties
      CollisionRadius=34.000000
      CollisionHeight=8.000000
      Mass=50.000000
+	 LCMode=1
 }

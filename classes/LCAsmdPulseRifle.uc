@@ -4,20 +4,18 @@
 class LCAsmdPulseRifle expands TournamentWeapon;
 
 var float Angle, Count;
-var() sound DownSound;
+var() Sound DownSound;
 var() int HitDamage;
 
 var bool bGraphicsInitialized;
 var bool bTeamColor;
 var class<TournamentWeapon> OrgClass;
-var class<ShockBeam> GlobalBeam;
-var class<ShockBeam> HiddenBeam;
-var class<Effects> GlobalExplosion;
-var class<Effects> HiddenExplosion;
+var class<Effects> ExplosionClass;
 
 
 var XC_CompensatorChannel LCChan;
-var bool bSimulating;
+var int LCMode;
+
 var float ClientSleepAgain; //Because ACE is flawed!!!!!!!!!!!!!!
 
 //My client effect spawner is flawed, so limit the amount of simshots we can pull
@@ -93,19 +91,7 @@ simulated function PlayPostSelect()
 	Super.PlayPostSelect();
 }
 
-
-function TraceFire( float Accuracy )
-{
-	if ( !IsLC() )
-	{
-		Super.TraceFire( Accuracy);
-		return;
-	}
-	ServerTraceFire( Accuracy);
-}
-
-
-function ServerTraceFire( float Accuracy)
+simulated function TraceFire( float Accuracy)
 {
 	local vector HitLocation, HitNormal, StartTrace, EndTrace, X,Y,Z;
 	local Actor Other;
@@ -113,60 +99,26 @@ function ServerTraceFire( float Accuracy)
 	local int ExtraFlags;
 
 	PawnOwner = Pawn(Owner);
+	if ( PawnOwner == None )
+		return;
 
-	GetAxes(PawnOwner.ViewRotation,X,Y,Z);
+	GetAxes( class'LCStatics'.static.PlayerRot(PawnOwner), X,Y,Z);
 	Owner.MakeNoise(PawnOwner.SoundDampening);
 	StartTrace = GetStartTrace( ExtraFlags, X,Y,Z); 
-	AdjustedAim = PawnOwner.AdjustAim(1000000, StartTrace, 2*AimError, False, False);	
+	AdjustedAim = PawnOwner.AdjustAim( 1000000, StartTrace, 2*AimError, False, False);	
 	X = vector(AdjustedAim);
 	EndTrace = StartTrace 
 		+ X * GetRange( ExtraFlags)
 		+ Accuracy * (FRand() - 0.5 ) * Y * 1000
 		+ Accuracy * (FRand() - 0.5 ) * Z * 1000;
 
-	LCChan.LCActor.ffUnlagPositions( LCChan.LCComp, StartTrace, rotator(EndTrace-StartTrace) );
-	Other = class'LCStatics'.static.LCTrace( HitLocation, HitNormal, EndTrace, StartTrace, PawnOwner);
-	bSimulating = true;
+	if ( IsLC() )
+		Other = LCChan.LCTraceShot(HitLocation,HitNormal,EndTrace,StartTrace,LCMode);
+	else
+		Other = Pawn(Owner).TraceShot(HitLocation,HitNormal,EndTrace,StartTrace);
 	ProcessTraceHit(Other, HitLocation, HitNormal, X,Y,Z);
-	bSimulating = false;
-	LCChan.LCActor.ffRevertPositions();
 }
 
-simulated function SimTraceFire()
-{
-	local vector HitLocation, AdjustedHitLocation, HitNormal, StartTrace, EndTrace, X,Y,Z;
-	local Actor Other;
-	local Pawn PawnOwner;
-	local int ExtraFlags;
-
-	PawnOwner = Pawn(Owner);
-	if ( (PawnOwner == none) || (Level.TimeSeconds - LastShot < 0.09) )
-		return;
-	GetAxes( class'LCStatics'.static.PlayerRot( PawnOwner), X,Y,Z);
-	LastShot = Level.TimeSeconds;
-	StartTrace = GetStartTrace( ExtraFlags, X,Y,Z);
-	EndTrace = StartTrace + X * GetRange( ExtraFlags);
-	Other = class'LCStatics'.static.ClientTraceShot( HitLocation, AdjustedHitLocation, HitNormal, EndTrace, StartTrace, PawnOwner);
-	SimProcessTraceHit( Other, AdjustedHitLocation, HitNormal, X,Y,Z);
-}
-
-simulated function SimProcessTraceHit(Actor Other, Vector HitLocation, Vector HitNormal, Vector X, Vector Y, Vector Z)
-{
-	local int i;
-	local PlayerPawn PlayerOwner;
-
-	if (Other==None)
-	{
-		HitNormal = -X;
-		HitLocation = Owner.Location + X*10000.0;
-	}
-	PlayerOwner = PlayerPawn(Owner);
-	if ( PlayerOwner != None )
-		PlayerOwner.ClientInstantFlash( -0.4, vect(450, 190, 650));
-	SpawnEffect(HitLocation, Owner.Location + CalcDrawOffset() + (FireOffset.X + 20) * X + FireOffset.Y * Y + FireOffset.Z * Z);
-	if ( ShockProj(Other)==None )
-		Spawn(GlobalExplosion,,, HitLocation+HitNormal*8,rotator(HitNormal));
-}
 
 //OBFEND
 ////////////////////////////////////////
@@ -259,7 +211,7 @@ simulated function PlayFiring()
 	if ( bTeamColor )
 		SetStaticSkins();
 	if ( Level.NetMode == NM_Client && IsLC() )
-		SimTraceFire();
+		TraceFire(0);
 }
 
 simulated function PlayAltFiring()
@@ -524,10 +476,8 @@ simulated function TweenDown()
 		TweenAnim('Down', 0.26);
 }
 
-function ProcessTraceHit(Actor Other, Vector HitLocation, Vector HitNormal, Vector X, Vector Y, Vector Z)
+simulated function ProcessTraceHit( Actor Other, Vector HitLocation, Vector HitNormal, Vector X, Vector Y, Vector Z)
 {
-	local Effects Explosion;
-
 	if (Other==None)
 	{
 		HitNormal = -X;
@@ -544,17 +494,7 @@ function ProcessTraceHit(Actor Other, Vector HitLocation, Vector HitNormal, Vect
 		ShockProj(Other).SuperExplosion();
 	}
 	else
-	{
-		if ( bSimulating && LCChan.LCActor.bNeedsHiddenEffects )
-			Explosion = Spawn(HiddenExplosion,Owner,, HitLocation+HitNormal*8,rotator(HitNormal));
-		else
-		{
-			Explosion = Spawn(GlobalExplosion,Owner,, HitLocation+HitNormal*8,rotator(HitNormal));
-			if ( bSimulating )
-				Explosion.SetPropertyText("bNotRelevantToOwner","1");
-		}
-		EditExplosion( Explosion);
-	}
+		SpawnExplosion( HitLocation, HitNormal);
 
 	if ( (Other != self) && (Other != Owner) && (Other != None) ) 
 		Other.TakeDamage(HitDamage, Pawn(Owner), HitLocation, 60000.0*X, MyDamageType);
@@ -562,10 +502,10 @@ function ProcessTraceHit(Actor Other, Vector HitLocation, Vector HitNormal, Vect
 
 simulated function SpawnEffect(vector HitLocation, vector SmokeLocation)
 {
-	local ShockBeam Smoke,shock;
-	local Vector DVector;
+	local vector DVector;
 	local int NumPoints;
 	local rotator SmokeRotation;
+	local ShockBeam Beam;
 
 	DVector = HitLocation - SmokeLocation;
 	NumPoints = VSize(DVector)/135.0;
@@ -574,17 +514,20 @@ simulated function SpawnEffect(vector HitLocation, vector SmokeLocation)
 	SmokeRotation = rotator(DVector);
 	SmokeRotation.roll = Rand(65535);
 	
-	if ( bSimulating && (Level.NetMode != NM_Client) && LCChan.LCActor.bNeedsHiddenEffects )
-		Smoke = Spawn(HiddenBeam,Owner,,SmokeLocation,SmokeRotation);
-	else
-	{
-		Smoke = Spawn(GlobalBeam,Owner,,SmokeLocation,SmokeRotation);
-		if ( bSimulating )
-			Smoke.SetPropertyText("bNotRelevantToOwner","1");
-	}
-	Smoke.MoveAmount = DVector/NumPoints;
-	Smoke.NumPuffs = NumPoints - 1;	
-	EditBeam( Smoke);
+	Beam = Spawn( class'FV_AdaptiveBeam',,, SmokeLocation, SmokeRotation);
+	Beam.MoveAmount = DVector/NumPoints;
+	Beam.NumPuffs = NumPoints - 1;	
+	class'LCStatics'.static.SetHiddenEffect( Beam, Owner, LCChan);
+	EditBeam( Beam);
+}
+
+simulated function SpawnExplosion( vector HitLocation, vector HitNormal)
+{
+	local Effects Explosion;
+
+	Explosion = Spawn( ExplosionClass,,, HitLocation+HitNormal*8,rotator(HitNormal));
+	class'LCStatics'.static.SetHiddenEffect( Explosion, Owner, LCChan);
+	EditExplosion( Explosion);
 }
 
 //Used in subclasses
@@ -635,6 +578,15 @@ simulated function bool IsLC()
 {
 	return (LCChan != none) && LCChan.bUseLC && (LCChan.Owner == Owner);
 }
+simulated function float GetAimError()
+{
+	return 0;
+}
+simulated function bool HandleLCFire( bool bFire, bool bAltFire)
+{
+	return true; //Don't let LCChan hitscan fire
+}
+
 function setHand( float Hand)
 {
 	if ( Hand == 2 )
@@ -661,10 +613,7 @@ function setHand( float Hand)
 
 defaultproperties
 {
-	GlobalBeam=class'FV_AdaptiveBeam'
-	HiddenBeam=class'FV_LCAdaptiveBeam'
-	GlobalExplosion=class'Botpack.ut_RingExplosion5'
-	HiddenExplosion=class'LCRingExplosion5'
+	ExplosionClass=class'FV_RingExplosion5'
 
      DownSound=Sound'Botpack.PulseGun.PulseDown'
      hitdamage=50

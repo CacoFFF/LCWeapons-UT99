@@ -217,9 +217,9 @@ function bool ValidateAccuracy( Weapon Weapon, int CmpRot, vector Start, vector 
 	local rotator View;
 	local vector X, Y, Z;
 
-	if ( Accuracy != float(Weapon.GetPropertyText("ffAimError")) ) //Weapon aim error mismatch
+	if ( Accuracy != LCS.static.GetAimError(Weapon) ) //Weapon aim error mismatch
 	{
-		Error = "Aim error mismatch:"@Accuracy@"vs"@Weapon.GetPropertyText("ffAimError");
+		Error = "Aim error mismatch:"@Accuracy@"vs"@LCS.static.GetAimError(Weapon);
 		return false; //Delay
 	}
 	

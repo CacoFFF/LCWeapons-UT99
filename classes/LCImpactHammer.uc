@@ -1,6 +1,8 @@
 class LCImpactHammer expands ImpactHammer;
 
 var XC_CompensatorChannel LCChan;
+var int LCMode;
+
 var XC_ImpactEvents ImpactEvents;
 var bool bFireRelease;
 var rotator BufferedDir;
@@ -76,7 +78,6 @@ state Firing
 	function Tick( float DeltaTime )
 	{
 		local PlayerPawn P;
-		local Rotator EnemyRot;
 		local vector HitLocation, HitNormal, StartTrace, EndTrace, X, Y, Z;
 		local Actor HitActor;
 
@@ -112,11 +113,7 @@ state Firing
 			EndTrace = StartTrace + 60 * X;  //25 ON LOCAL GAMES??
 
 			if ( IsLC() )
-			{
-				LCChan.LCActor.ffUnlagPositions( LCChan.LCComp, StartTrace, rotator(EndTrace-StartTrace) );
-				HitActor = class'LCStatics'.static.LCTrace( HitLocation, HitNormal, EndTrace, StartTrace, P);
-				LCChan.LCActor.ffRevertPositions();
-			}
+				HitActor = LCChan.LCTraceShot(HitLocation,HitNormal,EndTrace,StartTrace,LCMode);
 			else
 				HitActor = Trace(HitLocation, HitNormal, EndTrace, StartTrace, true);
 
@@ -200,11 +197,7 @@ function TraceFire( float Accuracy)
 	EndTrace = StartTrace + GetRange( ShootFlags) * vector(AdjustedAim); 
 
 	if ( IsLC() )
-	{
-		LCChan.LCActor.ffUnlagPositions( LCChan.LCComp, StartTrace, rotator(EndTrace-StartTrace) );
-		Other = class'LCStatics'.static.LCTrace( HitLocation, HitNormal, EndTrace, StartTrace, PawnOwner);
-		LCChan.LCActor.ffRevertPositions();
-	}
+		Other = LCChan.LCTraceShot(HitLocation,HitNormal,EndTrace,StartTrace,LCMode);
 	else
 		Other = PawnOwner.TraceShot(HitLocation, HitNormal, EndTrace, StartTrace);
 	ProcessTraceHit(Other, HitLocation, HitNormal, vector(AdjustedAim), Y, Z);
@@ -344,5 +337,12 @@ simulated function bool IsLC()
 {
 	return (LCChan != none) && LCChan.bUseLC && (LCChan.Owner == Owner);
 }
-
+simulated function float GetAimError()
+{
+	return 0;
+}
+simulated function bool HandleLCFire( bool bFire, bool bAltFire)
+{
+	return true; //Don't let LCChan hitscan fire
+}
 

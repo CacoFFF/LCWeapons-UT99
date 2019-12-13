@@ -4,6 +4,8 @@
 class LCMinigun2 extends minigun2;
 
 var XC_CompensatorChannel LCChan;
+var int LCMode;
+
 var bool bBulletNow;
 var bool bSpawnTracers;
 var bool bTIW;
@@ -47,19 +49,17 @@ simulated function PlayPostSelect()
 }
 
 
-
-//Serverside tracer
-function TraceFire( float Accuracy )
+simulated function TraceFire( float Accuracy )
 {
 	local vector HitLocation, HitNormal, StartTrace, EndTrace, X,Y,Z;
-	local Actor Other, Tracer;
+	local Actor Other;
 	local int ExtraFlags;
 
 	if ( Owner == none )
 		return;
 
 	Owner.MakeNoise(Pawn(Owner).SoundDampening);
-	GetAxes( Pawn(owner).ViewRotation, X,Y,Z);
+	GetAxes( class'LCStatics'.static.PlayerRot(Pawn(Owner)), X,Y,Z);
 	StartTrace = GetStartTrace( ExtraFlags, X,Y,Z); 
 	AdjustedAim = Pawn(Owner).AdjustAim( 1000000, StartTrace, 2.75*AimError, False, False);	
 	X = vector(AdjustedAim);
@@ -67,13 +67,8 @@ function TraceFire( float Accuracy )
 		+ X * GetRange( ExtraFlags)
 		+ Accuracy * (FRand() - 0.5 ) * Y * 1000
 		+ Accuracy * (FRand() - 0.5 ) * Z * 1000;
-
 	if ( IsLC() )
-	{
-		LCChan.LCActor.ffUnlagPositions( LCChan.LCComp, StartTrace, rotator(EndTrace-StartTrace) );
-		Other = class'LCStatics'.static.LCTrace( HitLocation, HitNormal, EndTrace, StartTrace, Pawn(Owner));
-		LCChan.LCActor.ffRevertPositions();
-	}
+		Other = LCChan.LCTraceShot(HitLocation,HitNormal,EndTrace,StartTrace,LCMode);
 	else
 		Other = Pawn(Owner).TraceShot(HitLocation,HitNormal,EndTrace,StartTrace);
 	ProcessTraceHit(Other, HitLocation, HitNormal, vector(AdjustedAim),Y,Z);
@@ -185,29 +180,12 @@ simulated function SimGenerateBullet()
 	if ( !IsLC() )
 		return;
 	bFiredShot = true;
-	SimTraceFire( ShotAccuracy);
+	TraceFire( ShotAccuracy);
 	if ( LCChan.bSimAmmo && (AmmoType != none && AmmoType.AmmoAmount > 0) )
 		AmmoType.AmmoAmount--;
 }
 
-simulated function SimTraceFire( float Accuracy )
-{
-	local vector HitLocation, AdjustedHitLocation, HitNormal, StartTrace, EndTrace, X,Y,Z;
-	local Actor Other;
-	local int ExtraFlags;
 
-	if ( Owner == none )
-		return;
-	GetAxes( class'LCStatics'.static.PlayerRot( Pawn(Owner)), X,Y,Z);
-
-	StartTrace = GetStartTrace( ExtraFlags, X,Y,Z);
-	EndTrace = StartTrace
-		+ X * GetRange( ExtraFlags)
-		+ Accuracy * (FRand() - 0.5 ) * Y * 1000
-		+ Accuracy * (FRand() - 0.5 ) * Z * 1000;
-	Other = class'LCStatics'.static.ClientTraceShot( HitLocation, AdjustedHitLocation, HitNormal, EndTrace, StartTrace, Pawn(Owner));
-	ProcessTraceHit(Other, HitLocation, HitNormal, X,Y,Z);
-}
 
 
 state NormalFire
@@ -357,7 +335,14 @@ simulated function bool IsLC()
 {
 	return (LCChan != none) && LCChan.bUseLC && (LCChan.Owner == Owner);
 }
-
+simulated function float GetAimError()
+{
+	return ShotAccuracy;
+}
+simulated function bool HandleLCFire( bool bFire, bool bAltFire)
+{
+	return true; //Don't let LCChan hitscan fire
+}
 
 
 defaultproperties

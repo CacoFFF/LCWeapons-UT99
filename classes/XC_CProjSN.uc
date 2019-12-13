@@ -49,7 +49,6 @@ event Actor SpawnNotification( Actor A)
 event Tick( float DeltaTime)
 {
 	local int i;
-	local Effects Trail;
 	local PlayerPawn Client;
 	local bool bVisible;
 	local vector ClientView;

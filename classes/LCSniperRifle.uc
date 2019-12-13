@@ -7,6 +7,8 @@ class LCSniperRifle expands SniperRifle;
 
 
 var XC_CompensatorChannel LCChan;
+var int LCMode;
+
 var float ffRefireTimer; //This will enforce security checks
 var float ffAimError; //If random seed != 0, do AimError serverside
 var float FireAnimRate;
@@ -20,11 +22,7 @@ simulated function ModifyFireRate();
 simulated event KillCredit( actor Other)
 {
 	if ( XC_CompensatorChannel(Other) != none )
-	{
 		LCChan = XC_CompensatorChannel(Other);
-		if ( LCChan.bDelayedFire )
-			class'LCStatics'.static.ClientTraceFire( self, LCChan, ffAimError);
-	}
 }
 
 simulated event RenderOverlays( canvas Canvas )
@@ -229,7 +227,16 @@ simulated function bool IsLC()
 {
 	return (LCChan != none) && LCChan.bUseLC && (LCChan.Owner == Owner);
 }
-
+simulated function float GetAimError()
+{
+	return ffAimError;
+}
+simulated function bool HandleLCFire( bool bFire, bool bAltFire)
+{
+	if ( bFire ) //LCChan controls Fire
+		return false;
+	return true; //Do not let LCChan handle alt-fire
+}
 
 
 
@@ -240,4 +247,5 @@ defaultproperties
 	FireAnimRate=1.0
 	NormalDamage=45
 	HeadshotDamage=100
+	LCMode=1
 }

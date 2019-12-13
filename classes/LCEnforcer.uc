@@ -9,6 +9,7 @@ class LCEnforcer extends Enforcer;
 var float AccuracyScale;
 
 var XC_CompensatorChannel LCChan;
+var int LCMode;
 var bool bBulletNow;
 
 replication
@@ -44,7 +45,7 @@ simulated function PlayFiring()
 	Super.PlayFiring();
 	if ( IsLC() && (Level.NetMode == NM_Client) )
 	{
-		SimTraceFire( 0.2);
+		TraceFire( 0.2);
 		LCChan.ClientFire(); //Force player to send positional update
 	}
 }
@@ -58,42 +59,11 @@ simulated function PlayRepeatFiring()
 			AltAccuracy = 0.4;
 		else
 			AltAccuracy = fMin(AltAccuracy + 0.5, 3);
-		SimTraceFire( AltAccuracy);
+		TraceFire( AltAccuracy);
 	}
 }
 
-simulated function SimTraceFire(float Accuracy)
-{
-	local vector RealOffset;
-    local vector HitLocation, AdjustedHitLocation, HitNormal, StartTrace, EndTrace, X,Y,Z;
-	local Actor Other;
-	local Pawn PawnOwner;
-	local private rotator ffRot;
-	local int ExtraFlags;
-
-	PawnOwner = Pawn(Owner);
-	if ( PawnOwner == none )	return;
-
-	RealOffset = FireOffset;
-	FireOffset *= 0.35;
-	if ( (SlaveEnforcer != None) || bIsSlave )		Accuracy = FClamp(3*Accuracy,0.75,3);
-	else if ( Owner.IsA('Bot') && !Bot(Owner).bNovice )		Accuracy = FMax(Accuracy, 0.45);
-	Accuracy *= AccuracyScale;
-
-	ffRot = class'LCStatics'.static.PlayerRot( PawnOwner);
-	
-	GetAxes(ffRot,X,Y,Z);
-	StartTrace = GetStartTrace( ExtraFlags, X,Y,Z); 
-	EndTrace = StartTrace 
-		+ X * GetRange( ExtraFlags)
-		+ Accuracy * (FRand() - 0.5 ) * Y * 1000
-		+ Accuracy * (FRand() - 0.5 ) * Z * 1000;
-	Other = Class'LCStatics'.static.ClientTraceShot( HitLocation, AdjustedHitLocation, HitNormal, EndTrace, StartTrace, PawnOwner);
-	ProcessTraceHit(Other, HitLocation, HitNormal, X,Y,Z);
-	FireOffset = RealOffset;
-}
-
-function TraceFire(float Accuracy)
+simulated function TraceFire( float Accuracy)
 {
 	local vector RealOffset;
     local vector HitLocation, HitNormal, StartTrace, EndTrace, X,Y,Z;
@@ -102,7 +72,8 @@ function TraceFire(float Accuracy)
 	local int ExtraFlags;
 
 	PawnOwner = Pawn(Owner);
-	if ( PawnOwner == none )	return;
+	if ( PawnOwner == none )
+		return;
 
 	RealOffset = FireOffset;
 	FireOffset *= 0.35;
@@ -113,7 +84,7 @@ function TraceFire(float Accuracy)
     Accuracy *= AccuracyScale;
 
 	Owner.MakeNoise(PawnOwner.SoundDampening);
-	GetAxes(PawnOwner.ViewRotation,X,Y,Z);
+	GetAxes( class'LCStatics'.static.PlayerRot(PawnOwner), X,Y,Z);
 	StartTrace = GetStartTrace( ExtraFlags, X,Y,Z); 
 	AdjustedAim = PawnOwner.AdjustAim(1000000, StartTrace, 2*AimError, False, False);	
 	X = vector(AdjustedAim);
@@ -122,11 +93,7 @@ function TraceFire(float Accuracy)
 		+ Accuracy * (FRand() - 0.5 ) * Y * 1000
 		+ Accuracy * (FRand() - 0.5 ) * Z * 1000;
 	if ( IsLC() )
-	{
-		LCChan.LCActor.ffUnlagPositions( LCChan.LCComp, StartTrace, rotator(EndTrace-StartTrace) );
-		Other = class'LCStatics'.static.LCTrace( HitLocation, HitNormal, EndTrace, StartTrace, PawnOwner);
-		LCChan.LCActor.ffRevertPositions();
-	}
+		Other = LCChan.LCTraceShot(HitLocation,HitNormal,EndTrace,StartTrace,LCMode);
 	else
 		Other = PawnOwner.TraceShot(HitLocation,HitNormal,EndTrace,StartTrace);
 	ProcessTraceHit(Other, HitLocation, HitNormal, X,Y,Z);
@@ -341,6 +308,14 @@ simulated function vector GetStartTrace( out int ExtraFlags, vector X, vector Y,
 simulated function bool IsLC()
 {
 	return (LCChan != none) && LCChan.bUseLC && (LCChan.Owner == Owner);
+}
+simulated function float GetAimError()
+{
+	return 0.2;
+}
+simulated function bool HandleLCFire( bool bFire, bool bAltFire)
+{
+	return false; //Don't let LCChan hitscan fire
 }
 function SetHand( float hand)
 {

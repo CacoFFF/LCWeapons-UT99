@@ -7,8 +7,8 @@ class LCShockRifle expands ShockRifle;
 
 
 var XC_CompensatorChannel LCChan;
+var int LCMode;
 var bool bLoaderSetup;
-var bool bSimulatingEffect;
 var bool bNoAmmoDeplete;
 var bool bTeamColor;
 var bool bCombo;
@@ -30,18 +30,7 @@ replication
 simulated event KillCredit( Actor Other)
 {
 	if ( XC_CompensatorChannel(Other) != none )
-	{
 		LCChan = XC_CompensatorChannel(Other);
-		if ( LCChan.bDelayedFire )
-			class'LCStatics'.static.ClientTraceFire( self, LCChan);
-		else if ( LCChan.bDelayedAltFire && (AltProjectileClass != none) )
-		{
-			if ( bAltInstantHit )
-				class'LCStatics'.static.ClientTraceFire( self, LCChan);
-			else if ( AltProjectileClass != None )
-				ffSimProj(AltProjectileClass, AltProjectileClass.Default.Speed);
-		}
-	}
 	else if ( LCMutator(Other) != none )
 	{
 		if ( LCMutator(Other).bTeamShock && (Class == class'LCShockRifle') )
@@ -226,7 +215,7 @@ simulated function ProcessTraceHit( Actor Other, Vector HitLocation, Vector HitN
 //Override whole function if we're using a significantly different beam
 simulated function SpawnEffect( vector HitLocation, vector SmokeLocation)
 {
-	local Vector DVector;
+	local vector DVector;
 	local int NumPoints;
 	local rotator SmokeRotation;
 	local ShockBeam Beam;
@@ -306,7 +295,19 @@ simulated function bool IsLC()
 		AmmoType.AmmoAmount = AmmoType.MaxAmmo;
 	return (LCChan != none) && LCChan.bUseLC && (LCChan.Owner == Owner);
 }
-
+simulated function float GetAimError()
+{
+	return 0;
+}
+simulated function bool HandleLCFire( bool bFire, bool bAltFire)
+{
+	if ( bFire || (bAltFire && bAltInstantHit) )
+		return false; //LCChan controls hitscan fire
+		
+	if ( bAltFire && (AltProjectileClass != None) )
+		ffSimProj( AltProjectileClass, AltProjectileClass.Default.Speed);
+	return true; //Don't let LCChan hitscan fire
+}
 
 
 
@@ -318,4 +319,5 @@ defaultproperties
 	ExplosionClass=class'FV_RingExplosion5'
 	bCombo=True
 	bInstantFlash=True
+	LCMode=1
 }

@@ -5,7 +5,7 @@
 class LCStatics expands Object
 	abstract;
 
-#exec OBJ LOAD FILE="LCPureUtil.u" PACKAGE=LCWeapons_0024
+#exec OBJ LOAD FILE="GlobalFunctions_LC.u" PACKAGE=GlobalFunctions_LC
 #exec OBJ LOAD FILE="SiegeUtil_A.u" PACKAGE=LCWeapons_0024
 #exec OBJ LOAD FILE="TimerUtil.u" PACKAGE=LCWeapons_0024
 #exec OBJ LOAD FILE="LCExtraFuncs.u" PACKAGE=LCWeapons_0024
@@ -45,12 +45,14 @@ static final function bool DetectXCGE( Actor Other)
 }
 
 
-//************************************************************************
-//Use the util to get a player's rotation while keeping Pure compatibility
-//************************************************************************
+//********************************************************************
+//Use this to get a player's rotation while keeping Pure compatibility
+//********************************************************************
 static final function rotator PlayerRot( Pawn P)
 {
-	return class'LCPureRotation'.static.PlayerRot(P);
+	if ( P.IsA('bbPlayer') && (P.Level.NetMode == NM_Client) )
+		return P.GR();
+	return P.ViewRotation;
 }
 
 //**********************************************
@@ -72,17 +74,26 @@ static final function vector GetStartTrace( Actor Other, out int ExtraFlags, vec
 {
 	return class'LCExtraFuncs'.static.GetStartTrace( Other, ExtraFlags, X, Y, Z);
 }
+static final function bool HandleLCFire( Actor Other, bool bFire, bool bAltFire)
+{
+	return class'LCExtraFuncs'.static.HandleLCFire( Other, bFire, bAltFire);
+}
+static final function float GetAimError( Actor Other)
+{
+	return class'LCExtraFuncs'.static.GetAimError( Other);
+}
 
 //********************************
 //ZP type weapon generic tracefire
 //********************************
-static final function ClientTraceFire( Weapon Weapon, XC_CompensatorChannel LCChan, optional float Accuracy)
+static final function ClientTraceFire( Weapon Weapon, XC_CompensatorChannel LCChan)
 {
 	local PlayerPawn Shooter;
 	local vector X, Y, Z, HitLocation, AdjustedHitLocation, HitNormal, StartTrace, EndTrace, HitOffset;
 	local Actor HitActor;
 	local rotator View;
 	local int CompressedView;
+	local float Accuracy;
 	local int ExtraFlags, Seed;
 
 	Shooter = PlayerPawn( Weapon.Owner);
@@ -95,6 +106,7 @@ static final function ClientTraceFire( Weapon Weapon, XC_CompensatorChannel LCCh
 
 	StartTrace = GetStartTrace( Weapon, ExtraFlags, X, Y, Z);
 	EndTrace = StartTrace + X * GetRange( Weapon, ExtraFlags);
+	Accuracy = GetAimError( Weapon );
 	if ( Accuracy > 0 )
 	{
 		Seed = Rand( 65536);
@@ -177,8 +189,6 @@ static final function Actor ClientTraceShot( out vector HitLocation, out vector 
 static final function Actor ffIrrelevantShot( out vector HitLocation, out vector HitNormal, vector EndTrace, vector StartTrace, PlayerPawn Player, float Ping)
 {
 	local Actor A;
-	local float OldEyeHeight, OldBaseEyeHeight;
-	local bool bHit;
 
 	if ( Player == none )
 		return None;
@@ -304,9 +314,10 @@ static function ffSwap( out private int U, out private int H)
 //*********************************
 static final function int ffRevertByte( private int nani2)
 {
-	local private int nani, HackMe;
-	For ( HackMe=0 ; HackMe<32 ; HackMe++ )
-		nani = nani | ( ((nani2 >>> HackMe) & 1) << (31-HackMe));
+	local int nani, i;
+	For ( i=0 ; i<32 ; i++ )
+		nani = nani | ( ((nani2 >>> i) & 1) << (31-i));
+	return nani;
 }
 
 
@@ -407,7 +418,7 @@ static final function SetHiddenEffect( Actor Effect, Actor Owner, XC_Compensator
 //*******************************
 //Sees if this weapon supports LC
 //*******************************
-static final function bool IsLCWeapon( Weapon W)
+static final function bool IsLCWeapon( Weapon W, out int LCMode)
 {
 	local byte OldRole;
 	local bool bIsLC;
@@ -416,7 +427,9 @@ static final function bool IsLCWeapon( Weapon W)
 	{
 		OldRole = W.Role;
 		W.Role = ROLE_Authority;
-		bIsLC = W.GetPropertyText("LCChan") != "";
+		bIsLC = W.GetPropertyText("LCChan") != "" && W.GetPropertyText("LCMode") != "";
+		if ( bIsLC )
+			LCMode = int(W.GetPropertyText("LCMode"));
 		W.SetPropertyText( "Role", default.RoleText[OldRole] );
 	}
 	return bIsLC;
