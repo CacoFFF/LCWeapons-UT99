@@ -17,7 +17,8 @@ var Weapon ffWeapon;
 var float ffCTimer; //Timer our last shot was fired
 var float ffCTimeStamp; //Timestamp the server is keeping
 var float ffDelayCount;
-var int ffLastPing;
+var int LastPing;
+var int LastLoss;
 var float ffRefireTimer; //If above shoot * 2, do not fire
 var float ffCurRegTimer; //Current registered timer
 var float ImpreciseTimer; //Give the player an opportunity to miss security checks once in a while
@@ -37,7 +38,10 @@ event Tick( private float ffDelta)
 	}
 
 	if ( (PlayerPawn(ffOwner) != none) && FRand() < 0.4 )
-		ffLastPing = int(PlayerPawn(ffOwner).ConsoleCommand("GETPING"));
+	{
+		LastPing = int(PlayerPawn(ffOwner).ConsoleCommand("GETPING"));
+		LastLoss = int(PlayerPawn(ffOwner).ConsoleCommand("GETLOSS"));
+	}
 
 	//Dead
 	if ( ffOwner.Health <= 0 )
@@ -82,6 +86,23 @@ event Tick( private float ffDelta)
 	ffNoHit = false;
 }
 
+function CheckPosList()
+{
+	if ( ffOwner == None )
+		return;
+		
+	if ( PosList == None )
+	{
+		Log("No pos list for "$ffOwner.GetHumanName()$"!!", 'LagCompensator' );
+		ForEach ffOwner.ChildActors( class'XC_PosList', PosList)
+			break;
+		if ( PosList == None )
+			PosList = Mutator.SetupPosList(ffOwner);
+	}
+		
+	if ( PosList.Owner != ffOwner )
+		PosList.SetOwner(ffOwner);
+}
 
 
 function bool ValidateWeapon( Weapon Weapon, out byte Imprecise)
@@ -180,8 +201,8 @@ function bool ValidatePlayerView( float ClientTimeStamp, vector StartTrace, int 
 	}
 
 	//Validate shot starting position
-	lag = float(ffLastPing) * Level.TimeDilation * 0.001;
-	maxdelta = 20 + lag * 35 + VSize(Player.Velocity) * 0.10;
+	lag = GetEngineLatency();
+	maxdelta = 21 + lag * 40 + LastLoss + VSize(Player.Velocity) * 0.11;
 	if ( Player.Base != None )
 	{
 		PlayerPos -= Player.Base.Velocity * (lag * 0.5); //Adjust to base
@@ -344,7 +365,7 @@ function Pawn ffCheckHit( XC_LagCompensator ffOther, vector HitLocation, out vec
 	RealVelocity = ffOther.PosList.GetVelocity( Index, IndexNext );
 	PositionDiff = RealPosition - ClientPosition;
 
-	ffBox = VSize( ffOther.PosList.GetExtent(Mutator.Marker[0].Index) );
+	ffBox = VSize( ffOther.PosList.GetExtent(Mutator.Marker[0].Index) ) + ffOther.LastLoss;
 	ffBox *= 1.2; //Main tweak
 	ffBox += VSize( RealVelocity * Mutator.PositionStep ); //Moving? Increase box size
 	if ( VSize(RealVelocity) > 600 )
@@ -398,11 +419,6 @@ function Pawn ffCheckHit( XC_LagCompensator ffOther, vector HitLocation, out vec
 	
 	Error = "Failed to pass";
 	return none;
-}
-
-function float GetLatency()
-{
-	return float(ffLastPing) / 1000.0;
 }
 
 function ResetTimeStamp()
@@ -462,6 +478,20 @@ function bool ImageDropping( Pawn Other, vector HitDir)
 	if ( (HitDir.Z < 40) || (Other.Velocity != vect(0,0,0)) || (Other.Physics != PHYS_Walking) )
 		return false; //Minimum threshold
 	return Normal(HitDir).Z > 0.75; //40º angle fall	
+}
+
+/*---------------------------------------------------------------
+                            Utils
+---------------------------------------------------------------*/
+
+final function float GetLatency()
+{
+	return float(LastPing) / 1000.0;
+}
+
+final function float GetEngineLatency()
+{
+	return float(LastPing) * Level.TimeDilation / 1000.0;
 }
 
 

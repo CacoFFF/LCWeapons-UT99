@@ -39,7 +39,7 @@ function AssessProjectile( Projectile P, out XC_ProjSimulator BestSim)
 		BestSim = self; //Take this simulator
 }
 
-function AssesProjectileNoCheck( Projectile P, out XC_ProjSimulator BestSim)
+function AssessProjectileNoCheck( Projectile P, out XC_ProjSimulator BestSim)
 {
 	// Assess any projectile if none expected
 	if ( (ExpectedProj != None) && !ClassIsChildOf( P.Class, ExpectedProj) )

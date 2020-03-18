@@ -61,10 +61,6 @@ state NormalFire
 
 simulated state ClientAltFiring
 {
-	simulated function Tick( float DeltaTime)
-	{
-		Super.Tick( DeltaTime);
-	}
 	simulated function AnimEnd()
 	{
 		if ( (Pawn(Owner) == None) || (AmmoType.AmmoAmount <= 0) )

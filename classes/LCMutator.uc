@@ -69,14 +69,6 @@ event PostBeginPlay()
 	ReplaceSN.Mutator = self;
 }
 
-function ModifyPlayer( Pawn Other)
-{
-	Super.ModifyPlayer(Other);
-
-	if ( ffFindCompFor(Other) == none )
-		ffInsertNewPlayer( Other);
-}
-
 function Class<Weapon> MyDefaultWeapon()
 {
 	if ( Level.Game.DefaultWeapon == class'ImpactHammer' )
@@ -186,24 +178,24 @@ function int SiegeMini( Weapon Other)
 {
 	local Weapon W;
 
-	W = W.Spawn(class'LCMinigun2', W.Owner, W.Tag);
+	W = Other.Spawn(class'LCMinigun2', Other.Owner, Other.Tag);
 	if ( W != none )
 	{
 		LCMinigun2(W).SlowSleep = 0.14;
 		LCMinigun2(W).FastSleep = 0.09;
-		W.SetCollisionSize( W.CollisionRadius, W.CollisionHeight);
-		W.Tag = W.Tag;
-		W.Event = W.Event;
+		W.SetCollisionSize( Other.CollisionRadius, Other.CollisionHeight);
+		W.Tag = Other.Tag;
+		W.Event = Other.Event;
 		if ( W.MyMarker != none )
 		{
-			W.MyMarker = W.MyMarker;
+			W.MyMarker = Other.MyMarker;
 			W.MyMarker.markedItem = W;
 		}
-		W.bHeldItem = W.bHeldItem;
-		W.RespawnTime = W.RespawnTime;
-		W.PickupAmmoCount = W.PickupAmmoCount;
-		W.AmmoName = W.AmmoName;
-		W.bRotatingPickup = W.bRotatingPickup;
+		W.bHeldItem = Other.bHeldItem;
+		W.RespawnTime = Other.RespawnTime;
+		W.PickupAmmoCount = Other.PickupAmmoCount;
+		W.AmmoName = Other.AmmoName;
+		W.bRotatingPickup = Other.bRotatingPickup;
 		SetReplace( Other, W);
 		return int(bApplySNReplace) * 2;
 	}

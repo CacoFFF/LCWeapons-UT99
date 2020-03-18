@@ -124,18 +124,6 @@ Begin:
 
 simulated state ClientAltFiring
 {
-	simulated event Tick( float DeltaTime)
-	{
-		local bool bOldB;
-		bOldB = bBulletNow;
-		Global.Tick( DeltaTime);
-		if ( bOldB && (Pawn(Owner) != none) && (Pawn(Owner).bAltFire == 0) )
-		{
-			PlayUnwind();
-			bSteadyFlash3rd = false;
-			GotoState('ClientFinish');
-		}
-	}
 Begin:
 	ShotAccuracy = SlowAccuracy;
 	Sleep( SlowSleep);
@@ -164,16 +152,17 @@ state ClientFinish
 }
 
 
-//Doing this because ACE has bugs, problem is, tick happens 1 frame after bBulletNow is set!!!
-simulated event Tick( float DeltaTime)
+//Doing this because ACE has bugs
+simulated event RenderOverlays( Canvas Canvas )
 {
-	Super.Tick(DeltaTime);
+	Super.RenderOverlays(Canvas);
 	if ( bBulletNow && (Level.NetMode == NM_Client) )
 	{
 		SimGenerateBullet();
 		bBulletNow = false;
 	}
 }
+
 
 simulated function SimGenerateBullet()
 {

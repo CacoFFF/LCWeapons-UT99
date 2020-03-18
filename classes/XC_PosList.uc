@@ -16,50 +16,25 @@ var int Flags[32];
 //2 - Duck (deprecated)
 //4 - Teleported
 
-var XC_PosList NextInactive;
 
-
-auto state Active
+event PostBeginPlay()
 {
-	event BeginState()
-	{
-		Tag = 'ActivePosList';
-		NextInactive = None;
-		StartingTimeSeconds = Level.TimeSeconds;
-		//TODO: Set bClientAdvance
-	}
-	
-	event EndState()
-	{
-		Tag = 'InactivePosList';
-		bPingHandicap = false;
-		if ( (Mutator != None) && (Mutator.InactivePosList != self) )
-		{
-			NextInactive = Mutator.InactivePosList;
-			Mutator.InactivePosList = self;
-		}
-		else if ( Mutator == None || Mutator.bDeleteMe )
-			Destroy();
-	}
-	
-	event Tick( float DeltaTime)
-	{
-		if ( Owner == None || Owner.bDeleteMe )
-			GotoState('');
-		else if ( Mutator.bAddPosition )
-			UpdateNow();
-	}
-Begin:
-	Sleep(0.0);
-	Tag = 'ActivePosList'; //Fix post spawn
+	StartingTimeSeconds = Level.TimeSeconds;
 }
 
+event Tick( float DeltaTime)
+{
+	if ( Owner == None || Owner.bDeleteMe )
+		Destroy();
+	else if ( Mutator.bAddPosition )
+		UpdateNow();
+}
 
-function UpdateNow()
+function UpdateNow() 
 {
 	local int OldIndex;
 	local int NewFlags;
-
+	
 	Position[Mutator.PositionIndex] = Owner.Location;
 	Extent[Mutator.PositionIndex].X = Owner.CollisionRadius + float(bPingHandicap);
 	Extent[Mutator.PositionIndex].Z = Owner.CollisionHeight + float(bPingHandicap);
@@ -118,7 +93,7 @@ function SetupCollision( float TraceTimeStamp, vector StartTrace, vector X, vect
 
 function DisableCollision()
 {
-	Tag = 'ActivePosList';
+	Tag = '';
 	SetCollision( false );
 }
 

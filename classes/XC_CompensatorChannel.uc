@@ -189,7 +189,6 @@ function bool ProcessHit( out ShotData Data)
 	local vector X, Y, Z, HitNormal, EndTrace;
 	local float Range, CalcPing;
 	local int ExtraFlags;
-	local float TargetRadius, TargetHeight;
 
 	Data.Error = "";
 	
@@ -225,10 +224,13 @@ function bool ProcessHit( out ShotData Data)
 		if  ( (Pawn(Data.ffOther).PlayerReplicationInfo != None) )
 		{
 			TargetComp = LCActor.ffFindCompFor( Pawn(Data.ffOther));
-			if ( (TargetComp == None) && Pawn(Data.ffOther).bIsPlayer ) //Players MUST have a compensator, monsters and others not (for now)
-				Data.ffOther = None;
+//			if ( (TargetComp == None) && Pawn(Data.ffOther).bIsPlayer ) //Players MUST have a compensator, monsters and others not (for now)
+//				Data.ffOther = None;
 			if ( TargetComp != None )
+			{
+				TargetComp.CheckPosList();
 				PosList = TargetComp.PosList;
+			}
 
 		}
 		//TODO: USE A GENERIC MONSTER COMPENSATOR
@@ -268,7 +270,7 @@ function bool ProcessHit( out ShotData Data)
 		return false;
 	}
 	
-	CalcPing = float(LCComp.ffLastPing) / 1000.0;
+	CalcPing = LCComp.GetLatency();
 	if ( (Data.ffOther == none) || !Class'LCStatics'.static.RelevantHitActor(Data.ffOther, PlayerPawn(Owner), CalcPing - ProjAdv) ) //Shot missed, get another target
 	{
 		//Override start position if we're finding a new target
@@ -419,8 +421,6 @@ state ServerOp
 {
 	event Tick( float DeltaTime)
 	{
-		local int i;
-		
 		if ( PlayerPawn(Owner) == None || Owner.bDeleteMe )
 		{
 			Destroy();
@@ -432,14 +432,14 @@ state ServerOp
 		bHitProcDone = false;
 		
 		if ( LCActor.bWeaponAnim )
-			cAdv = (float(LCComp.ffLastPing) / 1000) * Level.TimeDilation;
+			cAdv = LCComp.GetEngineLatency();
 
 		if ( !LCActor.bUsePrediction || (ClientPredictCap == 0) )
 			ProjAdv = 0;
 		else if ( ClientPredictCap > 0 )
-			ProjAdv = (fMin(LCComp.ffLastPing, float(ClientPredictCap) / Level.TimeDilation) / 1000.f) * Level.TimeDilation;
+			ProjAdv = (fMin(LCComp.LastPing, float(ClientPredictCap) / Level.TimeDilation) / 1000.f) * Level.TimeDilation;
 		else
-			ProjAdv = (fMin(LCComp.ffLastPing, LCActor.MaxPredictNonLC / Level.TimeDilation) / 1000.f) * Level.TimeDilation;
+			ProjAdv = (fMin(LCComp.LastPing, LCActor.MaxPredictNonLC / Level.TimeDilation) / 1000.f) * Level.TimeDilation;
 
 		CheckPendingWeapon( DeltaTime);
 		CheckFireOffsetY(); //Offset checking before weapon update delays offset update by one frame (good!)
@@ -531,6 +531,7 @@ simulated function ClientWeaponFire()
 	}
 	bDelayedFire = false;
 	bDelayedAltFire = false;
+	assert(class'Texture'.default.MacroTexture == None);
 }
 
 

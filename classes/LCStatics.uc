@@ -39,6 +39,7 @@ static final function bool DetectXCGE( Actor Other)
 	}
 	if ( default.XCGE_Version >= 20 ) //Static-safe XCGE replacer
 	{
+		ReplaceFunction( class'XC_LagCompensation', class'XC_LagCompensation', 'ffRevertPositions', 'ffRevertPositions_XC');
 	}
 	Other.Level.ConsoleCommand("set XC_ClientPhysics bRelevantIfOwnerIs 1");
 	return default.bXCGE;

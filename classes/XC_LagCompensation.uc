@@ -18,7 +18,6 @@ struct PositionMarker
 };
 
 var XC_LagCompensator ffCompList;
-var XC_PosList InactivePosList;
 var int iCombo; //Combo tracker count
 var float ffMaxLatency;
 var string Pkg;
@@ -47,7 +46,7 @@ var Teleporter swPads[63];
 // Time Stamp counter for positions
 var(Debug) int PositionIndex;
 var(Debug) bool bAddPosition;
-var(Debug) float PositionTimeStamp[32];
+var(Debug) float PositionTimeStamp[32]; //Real Seconds!!
 var(Debug) float PositionTimer;
 var PositionMarker Marker[2]; //Set during ffUnlagPositions
 
@@ -93,6 +92,23 @@ event PreBeginPlay()
 					break;
 			}
 		}
+}
+
+/*-----------------------------------------------------------------------
+	Mutator Interface.
+-----------------------------------------------------------------------*/
+
+function ModifyPlayer( Pawn Other)
+{
+	local XC_LagCompensator Comp;
+	
+	Super.ModifyPlayer(Other);
+
+	Comp = ffFindCompFor(Other);
+	if ( Comp == none )
+		ffInsertNewPlayer( Other);
+	else
+		Comp.CheckPosList();
 }
 
 
@@ -142,10 +158,15 @@ function Mutate (string MutateString, PlayerPawn Sender)
 	Super.Mutate(MutateString,Sender);
 }
 
+
+/*-----------------------------------------------------------------------
+	Other code.
+-----------------------------------------------------------------------*/
+
+
 event Tick( float DeltaTime)
 {
 	local int i;
-	local XC_PosList PosList;
 	local XC_LagCompensator LCComp;
 
 	bNeedsHiddenEffects = (LCS.default.XCGE_Version < 17) || (XCGE == none) || !bool(XCGE.GetPropertyText("bUseNewRelevancy"));
@@ -287,7 +308,7 @@ function ffUnlagPositions( XC_LagCompensator Compensator, vector ShootStart, rot
 
 	ShotTimeStamp = Level.TimeSeconds - Latency * Level.TimeDilation;
 	GetAxes( ShootDir,X,Y,Z);
-	ForEach AllActors( class'XC_PosList', PosList, 'ActivePosList') //XC: Use DynamicActors
+	ForEach AllActors( class'XC_PosList', PosList) //XC: Use DynamicActors
 		if ( PosList != Compensator.PosList )
 			PosList.SetupCollision( ShotTimeStamp, ShootStart, X, Y, Z);
 }
@@ -296,6 +317,13 @@ function ffRevertPositions()
 {
 	local XC_PosList PosList;
 	ForEach AllActors( class'XC_PosList', PosList, 'CollidingPosList') //XC: Use DynamicActors
+		PosList.DisableCollision();
+}
+
+function ffRevertPositions_XC()
+{
+	local XC_PosList PosList;
+	ForEach DynamicActors( class'XC_PosList', PosList, 'CollidingPosList')
 		PosList.DisableCollision();
 }
 
@@ -358,18 +386,9 @@ function XC_PosList SetupPosList( Actor Other)
 {
 	local XC_PosList NewPosList;
 	
-	if ( InactivePosList != None )
-	{
-		NewPosList = InactivePosList;
-		InactivePosList = InactivePosList.NextInactive;
-		NewPosList.SetOwner( Other );
-		NewPosList.GotoState('Active');
-	}
-	else
-	{
-		NewPosList = Spawn( class'XC_PosList', Other);
-		NewPosList.Mutator = self;
-	}
+	NewPosList = Spawn( class'XC_PosList', Other);
+	NewPosList.Mutator = self;
+	NewPosList.UpdateNow();
 
 	return NewPosList;
 }
