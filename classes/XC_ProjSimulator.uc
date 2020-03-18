@@ -23,15 +23,30 @@ event Tick( float DeltaTime)
 		StartMoving();
 }
 
-
 function AssessProjectile( Projectile P, out XC_ProjSimulator BestSim)
 {
+	// Assess any projectile if none expected
 	if ( (ExpectedProj != None) && !ClassIsChildOf( P.Class, ExpectedProj) )
-		return; //Assess any projectile if none expected
-	CurScore = (2+VSize(SpawnedAt-P.Location)) * (2+VSize(InitialVelocity-P.Velocity)) * ssCounter * ssCounter;
+		return; 
+		
+	// Asses by position
+	CurScore 
+	= (2+VSize(SpawnedAt-P.Location))
+	* (1+FMax(VSize(InitialVelocity-P.Velocity),1)) //Velocity may have an error of up to 1 unit, make up for it.
+	* ssCounter * ssCounter;
 //	Log( "LD="$VSize(SpawnedAt-P.Location)$", VD="$VSize(InitialVelocity-P.Velocity)$", T="$ssCounter$", Score="$CurScore );
 	if ( CurScore < 5 && (BestSim == none || (CurScore < BestSim.CurScore)) )
-		BestSim = self; //Take this projectile
+		BestSim = self; //Take this simulator
+}
+
+function AssesProjectileNoCheck( Projectile P, out XC_ProjSimulator BestSim)
+{
+	// Assess any projectile if none expected
+	if ( (ExpectedProj != None) && !ClassIsChildOf( P.Class, ExpectedProj) )
+		return; 
+		
+	// It makes sense that a recently spawned projectile is associated with the last dummy
+	BestSim = self;
 }
 
 function Assimilate( Projectile P)

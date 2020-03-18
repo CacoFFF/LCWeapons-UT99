@@ -121,9 +121,16 @@ function bool AssimilateProjectile( Projectile P)
 {
 	local XC_ProjSimulator Sim, BestSim;
 
+	// Try matching a good simulator
 	for ( Sim=SimulatorList ; Sim!=None ; Sim=Sim.NextSimulator )
 		Sim.AssessProjectile( P, BestSim);
 		
+	// Try matching last simulator
+	if ( BestSim == None )
+		for ( Sim=SimulatorList ; Sim!=None ; Sim=Sim.NextSimulator )
+			Sim.AssessProjectileNoCheck( P, BestSim);
+		
+	// Assimilate
 	if ( BestSim != None )
 	{
 		BestSim.Assimilate( P);
