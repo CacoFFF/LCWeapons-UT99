@@ -233,11 +233,7 @@ function bool ProcessHit( out ShotData Data)
 			}
 
 		}
-		//TODO: USE A GENERIC MONSTER COMPENSATOR
-		if ( (Data.ffOther != None) && (TargetComp == None) )
-		{
-		}
-		
+	
 	}
 	
 	//Validate actor Box
@@ -721,7 +717,7 @@ simulated function bool ClientWeaponUpdate( float DeltaTime)
 		bTournamentWeaponSwitch = (TournamentWeapon(CurWeapon) != none);
 	}
 	
-	if ( TournamentWeapon(CurWeapon) != None )
+	if ( (TournamentWeapon(CurWeapon) != None) && (ShockRifle(CurWeapon) != None) ) //Only shock...
 	{
 		TournamentWeapon(CurWeapon).bForceFire = false;
 		TournamentWeapon(CurWeapon).bForceAltFire = false;

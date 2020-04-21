@@ -204,12 +204,16 @@ simulated function AffectProjectiles( vector X, vector Y, vector Z)
 {
 	local Projectile P;
 	local float NewSpeed;
+	local vector View;
 	local vector NewVelocity;
 	local int AffectedCount;
 	
-	ForEach VisibleCollidingActors( class'Projectile', P, 550, Owner.Location)
+	View = Owner.Location;
+	View.Z += Pawn(Owner).BaseEyeHeight * 0.5;
+	
+	ForEach VisibleCollidingActors( class'Projectile', P, 550, View)
 		if ( ((P.Physics == PHYS_Projectile) || (P.Physics == PHYS_Falling))
-			&& (Normal(P.Location - Owner.Location) Dot X) > 0.9 )
+			&& (Normal(P.Location - View) Dot X) > 0.9 )
 		{
 			AffectedCount++;
 			
@@ -242,10 +246,10 @@ simulated function ProcessTraceHit( Actor Other, Vector HitLocation, Vector HitN
 	local bool bLevelHit;
 	local vector StartTrace;
 
-	if ( (Other == None) || (Other == Owner) || (Other == self) || (Owner == None))
+	if ( (Other == Owner) || (Other == self) || (Owner == None))
 		return;
 
-	bLevelHit = (Other == Level) || Other.IsA('Mover');
+	bLevelHit = (Other == Level) || (Brush(Other) != None);
 	StartTrace = GetStartTrace( ShootFlags, X,Y,Z);
 	
 	if ( ShootFlags == 2 ) //Alt fire
@@ -254,7 +258,7 @@ simulated function ProcessTraceHit( Actor Other, Vector HitLocation, Vector HitN
 		Scale = VSize( StartTrace - HitLocation) / GetRange(ShootFlags);
 		if ( bLevelHit )
 			Owner.TakeDamage( 24.0 * Scale, Pawn(Owner), HitLocation, -40000.0 * X * Scale, MyDamageType);
-		else
+		else if ( Other != None )
 			Other.TakeDamage( 20 * Scale, Pawn(Owner), HitLocation, 30000.0 * X * Scale, MyDamageType);
 	}
 	else //Normal fire
@@ -270,12 +274,12 @@ simulated function ProcessTraceHit( Actor Other, Vector HitLocation, Vector HitN
 			else
 				Owner.TakeDamage( 36.0, Pawn(Owner), HitLocation, -69000.0 * ChargeSize * X, MyDamageType);
 		}
-		else
+		else if ( Other != None )
 			Other.TakeDamage( 60.0 * ChargeSize, Pawn(Owner), HitLocation, 66000.0 * ChargeSize * X, MyDamageType);
 	}
 
 	//Common effect spawner
-	if ( !bLevelHit && !Other.bIsPawn && !Other.IsA('Carcass') )
+	if ( !bLevelHit && (Other != None) && !Other.bIsPawn && !Other.IsA('Carcass') )
 		Effect = Spawn(class'FV_SpriteSmokePuff',,,HitLocation+HitNormal*9);
 	class'LCStatics'.static.SetHiddenEffect( Effect, Owner, LCChan);
 }

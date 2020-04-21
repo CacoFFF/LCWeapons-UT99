@@ -44,14 +44,15 @@ simulated event PostNetBeginPlay()
 	
 	//Get projectiles (only straight liners for now)
 	ForEach RadiusActors( class'Projectile', P, 500.0 + 1000.0 * LCChan.cAdv )
-		if ( P.Physics == PHYS_Projectile )
+		if ( (P.Physics == PHYS_Projectile) || (P.Physics == PHYS_Falling) )
 		{
 			OldLocation = P.Location - P.Velocity * LCChan.cAdv;
 			Delta = OldLocation - Location;
 			if ( (VSize(Delta) <= 550) && (Normal(Delta) Dot X > 0.9) && FastTrace(OldLocation) )
 			{
-				P.SetLocation( OldLocation);
-				P.Speed = VSize( P.Velocity);
+				P.Velocity *= -1;
+				P.AutonomousPhysics( LCChan.cAdv);
+				P.Velocity *= -1;
 				if ( P.Velocity Dot Y > 0 )
 					P.Velocity = P.Speed * Normal( P.Velocity + (750 - VSize(Delta)) * Y);
 				else	
@@ -59,6 +60,7 @@ simulated event PostNetBeginPlay()
 				P.AutonomousPhysics( LCChan.cAdv);
 			}
 		}
+		
 }
 
 defaultproperties

@@ -42,6 +42,8 @@ simulated function PlayPostSelect()
 
 simulated function PlayFiring()
 {
+	if ( Level.NetMode == NM_DedicatedServer ) //HACK: ENSURE SOUND IS PLAYED AT RIGHT POSITION
+		SetLocation(Owner.Location);
 	Super.PlayFiring();
 	if ( IsLC() && (Level.NetMode == NM_Client) )
 	{
