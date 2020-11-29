@@ -67,7 +67,8 @@ simulated function ProcessTraceHit(Actor Other, Vector HitLocation, Vector HitNo
   	if (Other == Level) 
 	{
 		Effect = Spawn( class'FV_spexp', Owner,, HitLocation + HitNormal * 9, Rotator(HitNormal));
-		class'LCStatics'.static.SetHiddenEffect( Effect, Owner, LCChan);
+		if ( LCChan != None )
+			LCChan.SetHiddenEffect( Effect, Owner);
 	}
 	else if ( (Other!=self) && (Other!=Owner) && (Other != None) ) 
 	{

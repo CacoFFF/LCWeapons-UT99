@@ -238,9 +238,9 @@ function bool ValidateAccuracy( Weapon Weapon, int CmpRot, vector Start, vector 
 	local rotator View;
 	local vector X, Y, Z;
 
-	if ( Accuracy != LCS.static.GetAimError(Weapon) ) //Weapon aim error mismatch
+	if ( Accuracy != Weapon.GetAimError() ) //Weapon aim error mismatch
 	{
-		Error = "Aim error mismatch:"@Accuracy@"vs"@LCS.static.GetAimError(Weapon);
+		Error = "Aim error mismatch:"@Accuracy@"vs"@Weapon.GetAimError();
 		return false; //Delay
 	}
 	
@@ -248,7 +248,7 @@ function bool ValidateAccuracy( Weapon Weapon, int CmpRot, vector Start, vector 
 	GetAxes( View, X,Y,Z);
 	if ( Accuracy != 0 ) //Need to reprocess end point
 	{	
-		X = Normal( X * LCS.static.GetRange( Weapon, Flags) 
+		X = Normal( X * Weapon.GetRange(Flags) 
 			+ LCS.static.StaticAimError( Y, Z, Accuracy, Flags >>> 16) );
 	}
 
@@ -274,7 +274,7 @@ function bool ValidateWeaponRange( Weapon Weapon, int ExtraFlags, vector StartTr
 	local float YDist;
 	
 	NewExtraFlags = ExtraFlags;
-	Range      = LCS.static.GetRange( Weapon, NewExtraFlags);
+	Range      = Weapon.GetRange(NewExtraFlags);
 	PlayerView = LCS.static.DecompressRotator( CmpRot);
 	GetAxes( PlayerView, X, Y, Z);
 	YDist = ((HitLocation - StartTrace) dot X) - 1;

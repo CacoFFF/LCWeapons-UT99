@@ -17,7 +17,8 @@ simulated function ProcessTraceHit( Actor Other, vector HitLocation, vector HitN
 			HurtRadius( 15, 120.0, MyDamageType, 60000, HitLocation + HitNormal * 9);
 			e = spawn(class'FV_SpriteBallExplosion', Owner, , HitLocation + HitNormal * 9);
 			e.DrawScale /= 3.0;
-			class'LCStatics'.static.SetHiddenEffect( e, Owner, LCChan);
+			if ( LCChan != None )
+				LCChan.SetHiddenEffect( e, Owner);
 		}
 	}
 }

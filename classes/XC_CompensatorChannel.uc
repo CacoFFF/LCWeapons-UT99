@@ -272,8 +272,8 @@ function bool ProcessHit( out ShotData Data)
 		//Override start position if we're finding a new target
 		ExtraFlags = Data.ShootFlags;
 		GetAxes( Pawn(Owner).ViewRotation, X, Y, Z);
-		Data.StartTrace = class'LCStatics'.static.GetStartTrace( Data.Weap, ExtraFlags, X, Y, Z);
-		Range = class'LCStatics'.static.GetRange( Data.Weap, ExtraFlags);
+		Data.StartTrace = Data.Weap.GetStartTrace( ExtraFlags, X, Y, Z);
+		Range = Data.Weap.GetRange(ExtraFlags);
 		EndTrace = Data.StartTrace + X * Range;
 		if ( Data.ffAccuracy != 0 )
 			EndTrace += class'LCStatics'.static.StaticAimError( Y, Z, Data.ffAccuracy, Data.ShootFlags >>> 16);
@@ -515,7 +515,7 @@ simulated function ClientWeaponFire()
 	local int LCMode;
 
 	if ( (bDelayedFire || bDelayedAltFire) && class'LCStatics'.static.IsLCWeapon(CurWeapon,LCMode)
-	  && !class'LCStatics'.static.HandleLCFire( CurWeapon, bDelayedFire, bDelayedAltFire) )
+	  && !CurWeapon.HandleLCFire( bDelayedFire, bDelayedAltFire) )
 	{
 		//LC
 		if ( LCMode == 0 )
@@ -779,6 +779,19 @@ simulated function AdvanceWeaponAnim( Weapon Other)
 	}
 }
 
+/****************** Effects control
+ *
+ * SetHiddenEffect        - Uses XC_Engine to make an effect not relevant to it's owner.
+*/
+function SetHiddenEffect( Actor Effect, Actor InOwner)
+{
+	if ( (Effect != None) && (Level.NetMode != NM_Client) && bUseLC && (Owner == InOwner) )
+	{
+		Effect.SetOwner(Owner);
+		Effect.SetPropertyText("bIsLC","1");
+		Effect.SetPropertyText("bNotRelevantToOwner","1");
+	}
+}
 
 simulated function CheckSWJumpPads()
 {

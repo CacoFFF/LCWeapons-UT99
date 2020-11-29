@@ -6,9 +6,8 @@ class LCStatics expands Object
 	abstract;
 
 #exec OBJ LOAD FILE="GlobalFunctions_LC.u" PACKAGE=GlobalFunctions_LC
-#exec OBJ LOAD FILE="SiegeUtil_A.u" PACKAGE=LCWeapons_0024
-#exec OBJ LOAD FILE="TimerUtil.u" PACKAGE=LCWeapons_0024
-#exec OBJ LOAD FILE="LCExtraFuncs.u" PACKAGE=LCWeapons_0024
+#exec OBJ LOAD FILE="SiegeUtil_A.u" PACKAGE=LCWeapons_0025
+#exec OBJ LOAD FILE="TimerUtil.u" PACKAGE=LCWeapons_0025
 
 const MULTIPLIER = 0x015a4e35;
 const INCREMENT = 1;
@@ -64,25 +63,6 @@ static final function SetTimerCounter( Actor Other, float NewCounter)
 	class'TimerUtil'.static.SetTimerCounter( Other, NewCounter);
 }
 
-//*************************************************************
-//Use the util to call functions that exist in LCWeapons (only)
-//*************************************************************
-static final function float GetRange( Actor Other, out int ExtraFlags)
-{
-	return class'LCExtraFuncs'.static.GetRange( Other, ExtraFlags);
-}
-static final function vector GetStartTrace( Actor Other, out int ExtraFlags, vector X, vector Y, vector Z)
-{
-	return class'LCExtraFuncs'.static.GetStartTrace( Other, ExtraFlags, X, Y, Z);
-}
-static final function bool HandleLCFire( Actor Other, bool bFire, bool bAltFire)
-{
-	return class'LCExtraFuncs'.static.HandleLCFire( Other, bFire, bAltFire);
-}
-static final function float GetAimError( Actor Other)
-{
-	return class'LCExtraFuncs'.static.GetAimError( Other);
-}
 
 //********************************
 //ZP type weapon generic tracefire
@@ -105,9 +85,9 @@ static final function ClientTraceFire( Weapon Weapon, XC_CompensatorChannel LCCh
 	CompressedView = CompressRotator(View);
 	GetAxes( View, X, Y, Z);
 
-	StartTrace = GetStartTrace( Weapon, ExtraFlags, X, Y, Z);
-	EndTrace = StartTrace + X * GetRange( Weapon, ExtraFlags);
-	Accuracy = GetAimError( Weapon );
+	StartTrace = Weapon.GetStartTrace( ExtraFlags, X, Y, Z);
+	EndTrace = StartTrace + X * Weapon.GetRange(ExtraFlags);
+	Accuracy = Weapon.GetAimError();
 	if ( Accuracy > 0 )
 	{
 		Seed = Rand( 65536);
@@ -403,18 +383,6 @@ static final function rotator AlphaRotation( rotator End, rotator Start, float A
 	return Middle;
 }
 
-//**********************************************************************
-//Effects that support LC hiding/XCGE no owner replication become hidden
-//**********************************************************************
-static final function SetHiddenEffect( Actor Effect, Actor Owner, XC_CompensatorChannel Channel)
-{
-	if ( (Effect != None) && (Channel != None) && (Channel.Level.NetMode != NM_Client) && Channel.bUseLC && (Channel.Owner == Owner) && (PlayerPawn(Owner) != None) )
-	{
-		Effect.SetOwner( Owner);
-		Effect.SetPropertyText("bIsLC","1");
-		Effect.SetPropertyText("bNotRelevantToOwner","1");
-	}
-}
 
 //*******************************
 //Sees if this weapon supports LC

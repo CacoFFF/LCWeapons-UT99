@@ -517,7 +517,8 @@ simulated function SpawnEffect(vector HitLocation, vector SmokeLocation)
 	Beam = Spawn( class'FV_AdaptiveBeam',,, SmokeLocation, SmokeRotation);
 	Beam.MoveAmount = DVector/NumPoints;
 	Beam.NumPuffs = NumPoints - 1;	
-	class'LCStatics'.static.SetHiddenEffect( Beam, Owner, LCChan);
+	if ( LCChan != None )
+		LCChan.SetHiddenEffect( Beam, Owner);
 	EditBeam( Beam);
 }
 
@@ -526,7 +527,8 @@ simulated function SpawnExplosion( vector HitLocation, vector HitNormal)
 	local Effects Explosion;
 
 	Explosion = Spawn( ExplosionClass,,, HitLocation+HitNormal*8,rotator(HitNormal));
-	class'LCStatics'.static.SetHiddenEffect( Explosion, Owner, LCChan);
+	if ( LCChan != None )
+		LCChan.SetHiddenEffect( Explosion, Owner);
 	EditExplosion( Explosion);
 }
 

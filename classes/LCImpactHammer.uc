@@ -281,7 +281,8 @@ simulated function ProcessTraceHit( Actor Other, Vector HitLocation, Vector HitN
 	//Common effect spawner
 	if ( !bLevelHit && (Other != None) && !Other.bIsPawn && !Other.IsA('Carcass') )
 		Effect = Spawn(class'FV_SpriteSmokePuff',,,HitLocation+HitNormal*9);
-	class'LCStatics'.static.SetHiddenEffect( Effect, Owner, LCChan);
+	if ( LCChan != None )
+		LCChan.SetHiddenEffect( Effect, Owner);
 }
 
 simulated function PlayerHitVel( vector Momentum)

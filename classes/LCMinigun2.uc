@@ -85,7 +85,8 @@ simulated function ProcessTraceHit( Actor Other, Vector HitLocation, Vector HitN
 		if ( VSize(HitLocation - LastStartTrace) > 250 )
 		{
 			Effect = Spawn( class'FV_MTracer',,, LastStartTrace + 96 * X, rotator(HitLocation-LastStartTrace));
-			class'LCStatics'.static.SetHiddenEffect( Effect, Owner, LCChan);
+			if ( LCChan != None )
+				LCChan.SetHiddenEffect( Effect, Owner);
 			Effect = None;
 		}
 	}
@@ -109,7 +110,8 @@ simulated function ProcessTraceHit( Actor Other, Vector HitLocation, Vector HitN
 			X = vect(0,0,0); //Lockdown prevention on players
 		Other.TakeDamage( rndDam, Pawn(Owner), HitLocation, rndDam*500.0*X, MyDamageType);
 	}
-	class'LCStatics'.static.SetHiddenEffect( Effect, Owner, LCChan);
+	if ( LCChan != None )
+		LCChan.SetHiddenEffect( Effect, Owner);
 }
 
 

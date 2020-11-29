@@ -47,7 +47,8 @@ simulated function ProcessTraceHit(Actor Other, Vector HitLocation, Vector HitNo
 	if ( Other == Level )
 	{
 		HitEffect = Spawn( class'FV_HeavyWallHitEffect',,, HitLocation+HitNormal, Rotator(HitNormal));
-		class'LCStatics'.static.SetHiddenEffect( HitEffect, Owner, LCChan);
+		if ( LCChan != None )
+			LCChan.SetHiddenEffect( HitEffect, Owner);
 	}
 	else if ((Other != self) && (Other != Owner) && (Other != None))
 	{
@@ -130,7 +131,8 @@ simulated function ProcessTraceHit(Actor Other, Vector HitLocation, Vector HitNo
 		if ( !Other.bIsPawn && !Other.IsA('Carcass') )
 		{
 			HitEffect = Spawn( class'FV_SpriteSmokePuff',,, HitLocation+HitNormal*9);
-			class'LCStatics'.static.SetHiddenEffect( HitEffect, Owner, LCChan);
+			if ( LCChan != None )
+				LCChan.SetHiddenEffect( HitEffect, Owner);
 		}
 	}
 }

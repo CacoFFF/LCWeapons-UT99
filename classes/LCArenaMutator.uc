@@ -88,7 +88,10 @@ function ModifyPlayer( Pawn Other)
 
 function SetupWeaponReplace( class<Weapon> OrgW, class<Weapon> NewW, optional class<Weapon> OldW, optional class<Ammo> OldAmmo)
 {
-	OldWeapClass = OldW;
+	if ( OrgW != None )
+		OldWeapClass = OrgW;
+	else
+		OldWeapClass = OldW;
 	MainWeapClass = NewW;
 	MainAmmoClass = OrgW.default.AmmoName;
 	MainWeapClass.default.AmmoName = MainAmmoclass;
