@@ -9,7 +9,6 @@ var int LCMode;
 var bool bBulletNow;
 var bool bSpawnTracers;
 var bool bTIW;
-var bool bInstantUnwind;
 
 var float SlowSleep;
 var float FastSleep;
@@ -104,7 +103,9 @@ simulated function ProcessTraceHit( Actor Other, Vector HitLocation, Vector HitN
 			Pawn(Other).WarnTarget( Pawn(Owner), 500, X);
 
 		rndDam = BaseDamage + Rand(RandomDamage);
-		if ( FRand() < 0.2 )
+		if ( NoMomentum() ) //v469 lockdown switch
+			X = vect(0,0,0);
+		else if ( FRand() < 0.2 )
 			X *= 2.5;
 		else if ( (Pawn(Other) != None) && Pawn(Other).bIsPlayer )
 			X = vect(0,0,0); //Lockdown prevention on players
@@ -335,6 +336,12 @@ simulated function bool HandleLCFire( bool bFire, bool bAltFire)
 	return true; //Don't let LCChan hitscan fire
 }
 
+simulated function bool NoMomentum()
+{
+	if ( Level.Game != None )
+		return Level.Game.GetPropertyText("NoLockdown") == "1";
+	return false;
+}
 
 defaultproperties
 {
