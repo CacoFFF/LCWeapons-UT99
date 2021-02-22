@@ -8,6 +8,7 @@ class XC_ElementAdvancer expands Mutator;
 
 var() float SmoothFactor;
 var() vector DevFactor; //vect(0.65,0.65,0.3)
+var(Debug) float PawnMoveFactor;
 const DebugTickConstant = 100;
 
 struct AdvanceInfo
@@ -108,7 +109,14 @@ function AdvancePositions( float DeltaTime)
 		return;
 	
 	if ( Channel.LocalPlayer != none )
+	{
 		AdvCode = AdvanceCode( Channel.LocalPlayer.Weapon);
+		if ( AdvCode == 1 )
+			PawnMoveFactor -= DeltaTime*2;
+		else
+			PawnMoveFactor += DeltaTime*2;
+		PawnMoveFactor = fClamp( PawnMoveFactor, 0 , 1);
+	}
 	if ( AdvCode == 2 ) //NewNet weapon, do not move objects
 		return;
 	
@@ -152,6 +160,8 @@ function AdvancePositions( float DeltaTime)
 		Advanced[i].OldLoc = ToAdvance.Location;
 		
 		RelativePos = ToAdvance.Velocity * Channel.ProjAdv + Deviation;
+		if ( ToAdvance.bIsPawn )
+			RelativePos *= PawnMoveFactor;
 		Advanced[i].Base = ToAdvance.Base;
 		if ( ToAdvance.Base != none )
 			Advanced[i].BaseLocation = ToAdvance.Base.Location;
